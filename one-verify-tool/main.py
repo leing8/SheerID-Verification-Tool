@@ -75,7 +75,7 @@ def main():
 
     if not url:
         raise ValueError("URL 不能为空，请提供有效的验证URL")
-    
+
     if "sheerid.com" not in url:
         raise ValueError("无效的URL，必须包含 sheerid.com")
 

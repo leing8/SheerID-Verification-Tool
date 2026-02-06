@@ -24,7 +24,7 @@ def get_canvas_fingerprint(seed: str) -> dict:
         包含渲染数据和哈希的字典
     """
     rng = get_seeded_random(seed)
-    
+
     # 模拟 Canvas 渲染参数（这些会影响最终像素数据）
     # 真实浏览器中这些差异来自：字体渲染引擎、抗锯齿算法、GPU 驱动
     canvas_params = {
@@ -44,11 +44,11 @@ def get_canvas_fingerprint(seed: str) -> dict:
         # 渲染文本（FingerprintJS 常用测试文本）
         "testText": "Cwm fjordbank glyphs vext quiz, 😃",
         # 颜色和样式
-        "fillStyle": f"rgba({rng.randint(0,255)},{rng.randint(0,255)},{rng.randint(0,255)},0.5)",
+        "fillStyle": f"rgba({rng.randint(0, 255)},{rng.randint(0, 255)},{rng.randint(0, 255)},0.5)",
         "shadowBlur": rng.uniform(0, 2),
         "shadowColor": f"rgba(0,0,0,{rng.uniform(0.1, 0.3):.2f})",
     }
-    
+
     # 生成模拟的像素数据哈希（真实环境中是 toDataURL() 的结果）
     pixel_data = "|".join([
         seed,
@@ -57,7 +57,7 @@ def get_canvas_fingerprint(seed: str) -> dict:
         str(canvas_params["pixelNoise"]),
         canvas_params["fillStyle"],
     ])
-    
+
     return {
         "params": canvas_params,
         "hash": hashlib.sha256(pixel_data.encode()).hexdigest()[:32],

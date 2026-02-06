@@ -51,12 +51,7 @@ def should_retry_fraud(retry_count: int):
     return True, backoff_schedule[retry_count]
 
 
-def handle_fraud_rejection(
-    *,
-    retry_count: int = 0,
-    error_payload=None,
-    message: str = None,
-):
+def handle_fraud_rejection(*, retry_count: int = 0, error_payload=None, message: str = None, ):
     """打印醒目的欺诈横幅和可操作的帮助信息，然后返回重试指导。
 
     此处理程序旨在当 SheerID 响应 `fraudRulesReject` 错误时调用。
@@ -93,15 +88,7 @@ def handle_fraud_rejection(
 
     # 尽力提取有用字段，不假设严格的模式。
     if isinstance(error_payload, dict) and error_payload:
-        interesting_keys = [
-            "code",
-            "errorCode",
-            "message",
-            "detail",
-            "details",
-            "error",
-            "errors",
-        ]
+        interesting_keys = ["code", "errorCode", "message", "detail", "details", "error", "errors", ]
         extracted = {}
         for k in interesting_keys:
             if k in error_payload and error_payload.get(k) not in (None, ""):

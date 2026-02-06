@@ -25,16 +25,16 @@ def get_audio_fingerprint(seed: str) -> dict:
         包含音频处理参数和结果的字典
     """
     rng = get_seeded_random(seed)
-    
+
     # AudioContext 基础参数
     sample_rate = rng.choice([44100, 48000])
-    
+
     # OscillatorNode 参数
     oscillator = {
         "type": "triangle",  # FingerprintJS 使用 triangle 波
         "frequency": 10000,
     }
-    
+
     # DynamicsCompressorNode 参数
     compressor = {
         "threshold": -50,
@@ -43,19 +43,19 @@ def get_audio_fingerprint(seed: str) -> dict:
         "attack": 0.003,
         "release": 0.25,
     }
-    
+
     # 模拟音频处理结果的浮点数值
     # 真实环境中，这是 AnalyserNode.getFloatFrequencyData() 的结果
     # 不同设备的音频硬件和驱动会产生 ~0.0001 级别的差异
     base_value = 124.04347527516074  # FingerprintJS 典型基准值
     noise = rng.uniform(-0.00001, 0.00001)
     audio_sum = base_value + noise
-    
+
     # 模拟多个采样点的差异
     frequency_data = [
         audio_sum + rng.uniform(-0.00001, 0.00001) for _ in range(128)
     ]
-    
+
     # OfflineAudioContext 渲染结果
     buffer_data = "|".join([
         seed,
@@ -63,7 +63,7 @@ def get_audio_fingerprint(seed: str) -> dict:
         str(audio_sum),
         str(frequency_data[:8]),
     ])
-    
+
     return {
         # AudioContext 参数
         "sampleRate": sample_rate,
@@ -71,15 +71,15 @@ def get_audio_fingerprint(seed: str) -> dict:
         "channelCountMode": "max",
         "channelInterpretation": "speakers",
         "state": "running",
-        
+
         # 节点参数
         "oscillator": oscillator,
         "compressor": compressor,
-        
+
         # 处理结果
         "audioSum": f"{audio_sum:.14f}",
         "frequencyData": frequency_data[:8],
-        
+
         # 最终哈希
         "hash": hashlib.sha256(buffer_data.encode()).hexdigest()[:32],
     }

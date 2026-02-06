@@ -24,16 +24,16 @@ def get_webgl_fingerprint(seed: str) -> dict:
         包含完整 WebGL 参数的字典
     """
     rng = get_seeded_random(seed)
-    
+
     # GPU 信息（WEBGL_debug_renderer_info 扩展）
     vendor = rng.choice(WEBGL_VENDORS)
     renderer = rng.choice(WEBGL_RENDERERS)
-    
+
     # 根据 GPU 类型选择合适的参数范围
     is_nvidia = "NVIDIA" in renderer
     is_intel = "Intel" in renderer
     is_apple = "Apple" in renderer
-    
+
     # 模拟 GPU 能力参数（不同 GPU 有不同的硬件限制）
     if is_nvidia:
         max_texture_size = rng.choice([16384, 32768])
@@ -51,7 +51,7 @@ def get_webgl_fingerprint(seed: str) -> dict:
         max_texture_size = rng.choice([8192, 16384])
         max_viewport_dims = [16384, 16384]
         max_renderbuffer_size = rng.choice([8192, 16384])
-    
+
     # 常见 WebGL 扩展
     all_extensions = [
         "ANGLE_instanced_arrays",
@@ -85,7 +85,7 @@ def get_webgl_fingerprint(seed: str) -> dict:
     # 随机选择 15-25 个扩展
     num_extensions = rng.randint(15, min(25, len(all_extensions)))
     extensions = rng.sample(all_extensions, num_extensions)
-    
+
     # 着色器精度（不同 GPU 精度不同）
     shader_precision = {
         "highFloatPrecision": rng.choice([23, 24, 127]),
@@ -93,18 +93,18 @@ def get_webgl_fingerprint(seed: str) -> dict:
         "mediumFloatPrecision": rng.choice([23, 24]),
         "lowFloatPrecision": rng.choice([8, 23, 24]),
     }
-    
+
     return {
         # GPU 信息
         "vendor": vendor,
         "renderer": renderer,
         "unmaskedVendor": vendor,
         "unmaskedRenderer": renderer,
-        
+
         # 版本信息
         "version": "WebGL 1.0 (OpenGL ES 2.0 Chromium)",
         "shadingLanguageVersion": "WebGL GLSL ES 1.0 (OpenGL ES GLSL ES 1.0 Chromium)",
-        
+
         # GPU 能力参数
         "maxTextureSize": max_texture_size,
         "maxViewportDims": max_viewport_dims,
@@ -117,17 +117,17 @@ def get_webgl_fingerprint(seed: str) -> dict:
         "maxVertexUniformVectors": rng.choice([256, 1024, 4096]),
         "maxFragmentUniformVectors": rng.choice([256, 1024, 4096]),
         "maxVaryingVectors": rng.choice([15, 16, 30, 31]),
-        
+
         # 抗锯齿
         "antialias": rng.choice([True, False]),
         "maxSamples": rng.choice([4, 8, 16]),
-        
+
         # 扩展
         "extensions": extensions,
-        
+
         # 着色器精度
         "shaderPrecision": shader_precision,
-        
+
         # 最终哈希
         "hash": generate_deterministic_hash(seed, "_webgl"),
     }

@@ -20,10 +20,10 @@ def get_seeded_random(seed: str) -> random.Random:
     """
     if not seed:
         raise ValueError("[指纹错误] verificationId 是必须的，无法生成一致性指纹")
-    
+
     rng = random.Random()
     # 使用 SHA-256 提高哈希质量
-    rng.seed(int(hashlib.sha256(seed.encode()).hexdigest(), 16) % (2**32))
+    rng.seed(int(hashlib.sha256(seed.encode()).hexdigest(), 16) % (2 ** 32))
     return rng
 
 

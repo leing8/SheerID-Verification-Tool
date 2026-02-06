@@ -41,12 +41,12 @@ def get_fingerprint(seed: str) -> str:
         seed: verificationId（必须），确保同一验证会话中指纹一致
     """
     rng = get_seeded_random(seed)
-    
+
     # 获取渲染指纹的哈希值
     canvas_data = get_canvas_fingerprint(seed)
     webgl_data = get_webgl_fingerprint(seed)
     audio_data = get_audio_fingerprint(seed)
-    
+
     components = [
         seed,
         str(rng.random()),
@@ -57,7 +57,7 @@ def get_fingerprint(seed: str) -> str:
         rng.choice(["Google Inc.", "Apple Computer, Inc.", ""]),
         str(rng.randint(2, 16)),  # CPU cores
         str(rng.randint(4, 32)),  # Device memory
-        str(rng.randint(0, 1)),   # Touch support
+        str(rng.randint(0, 1)),  # Touch support
         generate_session_id(seed, "_session"),
         # 整合渲染指纹哈希
         canvas_data["hash"],
@@ -76,23 +76,23 @@ def get_full_fingerprint(seed: str, os_type: str = None) -> dict:
         os_type: 操作系统类型，如为 None 则随机选择
     """
     rng = get_seeded_random(seed)
-    
+
     # 确定操作系统类型
     if os_type is None:
         os_type = rng.choice(["windows", "macos", "linux"])
-    
+
     # 获取渲染指纹（仅调用一次，用于 hash 计算和返回）
     canvas_data = get_canvas_fingerprint(seed)
     webgl_data = get_webgl_fingerprint(seed)
     audio_data = get_audio_fingerprint(seed)
-    
+
     # 预计算共享值，避免重复 rng 调用
     language = rng.choice(LANGUAGES).split(",")[0]
     platform = rng.choice(PLATFORMS)
     cpu_cores = rng.randint(2, 16)
     memory = rng.randint(4, 32)
     touch_support = rng.choice([True, False])
-    
+
     # 直接计算 hash，避免重复调用 get_fingerprint()
     components = [
         seed,

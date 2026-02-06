@@ -71,13 +71,13 @@ def _get_platform_for_ua(ua: str) -> tuple:
         chrome_version,
         CHROME_VERSION_SEC_CH_UA["131"]  # 默认使用 131
     )
-    
+
     # 根据 UA 内容匹配平台
     for ua_pattern, platform_info in UA_PLATFORM_MAP.items():
         if ua_pattern in ua:
             platform_name, sec_ch_ua_platform, _ = platform_info
             return (platform_name, sec_ch_ua_platform, sec_ch_ua)
-    
+
     # 默认返回 Windows 平台
     return ("Windows", '"Windows"', sec_ch_ua)
 
@@ -92,10 +92,10 @@ def get_headers() -> dict:
     """
     # 使用与 TLS 指纹版本匹配的 User-Agent
     ua = get_matched_ua_for_impersonate()
-    
+
     # 根据 UA 确定性选择匹配的平台（而非随机）
     platform_name, sec_ch_ua_platform, sec_ch_ua = _get_platform_for_ua(ua)
-    
+
     language = random.choice(LANGUAGES)
     nr_headers = generate_newrelic_headers()
 

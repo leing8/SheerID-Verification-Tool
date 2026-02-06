@@ -16,7 +16,7 @@ def _get_seeded_random(seed: str) -> random.Random:
     """获取基于种子的随机数生成器"""
     rng = random.Random()
     if seed:
-        rng.seed(int(hashlib.sha256(seed.encode()).hexdigest(), 16) % (2**32))
+        rng.seed(int(hashlib.sha256(seed.encode()).hexdigest(), 16) % (2 ** 32))
     return rng
 
 
@@ -49,7 +49,7 @@ def generate_transcript(first: str, last: str, school: str, dob: str, seed: str 
         seed: 随机种子（verificationId），用于确定性生成
     """
     rng = _get_seeded_random(seed)
-    
+
     w, h = 850, 1100
     img = Image.new("RGB", (w, h), (255, 255, 255))
     draw = ImageDraw.Draw(img)
@@ -167,7 +167,7 @@ def generate_student_id(first: str, last: str, school: str, seed: str = None) ->
         seed: 随机种子（verificationId），用于确定性生成
     """
     rng = _get_seeded_random(seed)
-    
+
     w, h = 650, 400
     # 背景颜色使用确定性随机微调
     bg_color = (

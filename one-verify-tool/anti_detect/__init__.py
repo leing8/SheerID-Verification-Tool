@@ -139,7 +139,6 @@ __all__ = [
     "handle_fraud_rejection",
 ]
 
-
 if __name__ == "__main__":
     # 测试
     print("\n" + "=" * 60)
@@ -150,7 +149,7 @@ if __name__ == "__main__":
 
     # 测试用种子（模拟 verificationId）
     _test_seed = "test_verification_id_12345"
-    
+
     print(f"示例指纹:")
     print(f"  基础哈希: {get_fingerprint(_test_seed)}")
     print(f"  Canvas 指纹: {get_canvas_fingerprint(_test_seed)}")

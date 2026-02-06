@@ -29,19 +29,19 @@ def get_fonts_fingerprint(seed: str, os_type: str = "windows") -> List[str]:
         检测到的字体列表（模拟）
     """
     rng = get_seeded_random(seed)
-    
+
     # 根据操作系统选择字体库
     if os_type == "macos":
         base_fonts = COMMON_FONTS_MAC.copy()
     else:
         base_fonts = COMMON_FONTS_WINDOWS.copy()
-    
+
     # 随机移除少量字体以增加多样性
     num_remove = rng.randint(0, 3)
     for _ in range(num_remove):
         if len(base_fonts) > 10:
             base_fonts.pop(rng.randint(0, len(base_fonts) - 1))
-    
+
     return base_fonts
 
 
@@ -56,10 +56,10 @@ def get_plugins_fingerprint(seed: str) -> List[dict]:
         检测到的插件列表（模拟）
     """
     rng = get_seeded_random(seed)
-    
+
     # 现代 Chrome 通常只有 PDF 相关插件
     plugins = COMMON_PLUGINS.copy()
-    
+
     # 随机选择 3-5 个插件
     num_plugins = rng.randint(3, min(5, len(plugins)))
     return rng.sample(plugins, num_plugins)
@@ -76,10 +76,10 @@ def get_webrtc_fingerprint(seed: str) -> dict:
         模拟的 WebRTC 信息
     """
     rng = get_seeded_random(seed)
-    
+
     # 生成模拟的本地 IP（私网地址）
     local_ip = f"192.168.{rng.randint(0, 255)}.{rng.randint(1, 254)}"
-    
+
     return {
         "localIP": local_ip,
         "publicIP": None,
@@ -100,9 +100,9 @@ def get_navigator_fingerprint(seed: str, os_type: str = "windows") -> dict:
         模拟的 navigator 属性
     """
     rng = get_seeded_random(seed)
-    
+
     nav_props = NAVIGATOR_PROPERTIES.get(os_type, NAVIGATOR_PROPERTIES["windows"])
-    
+
     return {
         "platform": nav_props["platform"],
         "appVersion": nav_props["appVersion"],
@@ -128,10 +128,10 @@ def get_screen_fingerprint(seed: str) -> dict:
         模拟的屏幕信息
     """
     rng = get_seeded_random(seed)
-    
+
     resolution = rng.choice(RESOLUTIONS)
     width, height = resolution.split("x")
-    
+
     return {
         "width": int(width),
         "height": int(height),

@@ -52,8 +52,6 @@ class GeminiVerifier:
         if hasattr(self, "client"):
             self.client.close()
 
-
-
     @staticmethod
     def _parse_id(url: str) -> Optional[str]:
         match = re.search(r"verificationId=([a-f0-9]+)", url, re.IGNORECASE)

@@ -125,7 +125,7 @@ def make_request(session, method: str, url: str, impersonate: str = None, **kwar
             "会话类型无效，必须使用 curl_cffi 创建会话。"
             "\n请通过 create_session() 创建会话。"
         )
-    
+
     # curl_cffi 支持每请求模拟
     try:
         return session.request(method, url, impersonate=imp, **kwargs)
@@ -191,7 +191,7 @@ def warm_session(session, program_id: str = None, headers: dict = None):
 def print_anti_detect_info():
     """打印反检测配置信息"""
     from .config import CHROME_VERSIONS, USER_AGENTS, RESOLUTIONS
-    
+
     session, lib, imp = create_session()
     print(f"\n{'=' * 50}")
     print(f"反检测配置")
