@@ -6,6 +6,15 @@
 import random
 import time
 
+# 强制导入 numpy
+try:
+    import numpy as np
+except ImportError:
+    raise ImportError(
+        "numpy 未安装，无法继续运行。\n"
+        "请运行: pip install numpy"
+    )
+
 from .config import DEFAULT_IMPERSONATE, IMPERSONATE_OPTIONS, CHROME_VERSIONS, USER_AGENTS, RESOLUTIONS
 from .headers import get_headers
 from .proxy import validate_proxy, check_proxy_type
@@ -15,11 +24,7 @@ def random_delay(min_ms: int = 300, max_ms: int = 1200):
     """
     使用 Gamma 分布的随机延迟以模拟人类行为
     Gamma 分布比均匀随机更逼真
-    
-    依赖: numpy（强制要求，用于高通过率）
     """
-    import numpy as np
-
     # Gamma 分布更好地模拟人类反应时间
     shape, scale = 2.0, (max_ms - min_ms) / 4000
     delay = min_ms / 1000 + np.random.gamma(shape, scale)
@@ -112,18 +117,20 @@ def make_request(session, method: str, url: str, impersonate: str = None, **kwar
     """
     imp = impersonate or DEFAULT_IMPERSONATE
 
-    # 检查是否为 curl_cffi 会话
+    # 强制要求 curl_cffi 会话
     session_type = type(session).__module__
 
-    if "curl_cffi" in session_type:
-        # curl_cffi 支持每请求模拟
-        try:
-            return session.request(method, url, impersonate=imp, **kwargs)
-        except TypeError:
-            # 旧版本不支持每请求模拟
-            return session.request(method, url, **kwargs)
-    else:
-        # 其他库 - 直接发起请求
+    if "curl_cffi" not in session_type:
+        raise RuntimeError(
+            "会话类型无效，必须使用 curl_cffi 创建会话。"
+            "\n请通过 create_session() 创建会话。"
+        )
+    
+    # curl_cffi 支持每请求模拟
+    try:
+        return session.request(method, url, impersonate=imp, **kwargs)
+    except TypeError:
+        # 旧版本不支持每请求模拟
         return session.request(method, url, **kwargs)
 
 
@@ -141,7 +148,7 @@ def warm_session(session, program_id: str = None, headers: dict = None):
         session: 预热后的会话
     """
     base_url = "https://services.sheerid.com"
-    hdrs = headers or get_headers(for_sheerid=True)
+    hdrs = headers or get_headers()
 
     try:
         # 步骤1: 加载主 API（像浏览器在页面加载时那样）

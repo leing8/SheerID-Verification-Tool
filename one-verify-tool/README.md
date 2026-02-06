@@ -7,8 +7,9 @@ Python tool for Google One AI Premium student discount via SheerID.
 ## 📋 Requirements
 
 - Python 3.8+
-- `httpx` - HTTP client
-- `Pillow` - Image generation
+- `curl_cffi` - TLS 指纹伪装（必需，用于绕过反欺诈检测）
+- `Pillow` - 图像生成
+- `numpy` - 人类行为模拟
 
 ---
 
@@ -29,14 +30,10 @@ cd SheerID-Verification-Tool/one-verify-tool
 ### 3. Install Dependencies
 
 ```bash
-pip install httpx Pillow
+pip install -r requirements.txt
 ```
 
-**[Optional] Enhanced Anti-Detection:**
-```bash
-pip install curl_cffi cloudscraper
-```
-> `curl_cffi` spoofs TLS fingerprint to look like real Chrome browser
+> ⚠️ **高通过率模式**: 所有依赖均为必需，缺少任何依赖将导致程序报错退出。
 
 ### 4. Run Tool
 

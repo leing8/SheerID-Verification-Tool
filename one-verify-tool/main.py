@@ -73,16 +73,17 @@ def main():
     else:
         url = input("\n   请输入验证URL: ").strip()
 
-    if not url or "sheerid.com" not in url:
-        print("\n   ❌ 无效的URL。必须包含 sheerid.com")
-        return
+    if not url:
+        raise ValueError("URL 不能为空，请提供有效的验证URL")
+    
+    if "sheerid.com" not in url:
+        raise ValueError("无效的URL，必须包含 sheerid.com")
 
     # 显示代理信息
     if args.proxy:
         print(f"   🔒 使用代理: {args.proxy}")
     else:
-        print("   ⚠️  未指定代理！使用直连。")
-        print("   ⚠️  这可能导致验证失败。")
+        print("   ⚠️  未指定代理，将使用系统代理或直连，直连可能导致验证失败")
 
     print("\n   ⏳ 处理中...")
 

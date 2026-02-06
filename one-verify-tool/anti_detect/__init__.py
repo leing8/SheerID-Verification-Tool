@@ -124,12 +124,15 @@ if __name__ == "__main__":
 
     print_anti_detect_info()
 
+    # 测试用种子（模拟 verificationId）
+    _test_seed = "test_verification_id_12345"
+    
     print(f"示例指纹:")
-    print(f"  基础哈希: {get_fingerprint()}")
-    print(f"  Canvas 指纹: {get_canvas_fingerprint()}")
-    print(f"  音频指纹: {get_audio_fingerprint()}")
+    print(f"  基础哈希: {get_fingerprint(_test_seed)}")
+    print(f"  Canvas 指纹: {get_canvas_fingerprint(_test_seed)}")
+    print(f"  音频指纹: {get_audio_fingerprint(_test_seed)}")
 
-    webgl = get_webgl_fingerprint()
+    webgl = get_webgl_fingerprint(_test_seed)
     print(f"  WebGL 厂商: {webgl['vendor']}")
     print(f"  WebGL 渲染器: {webgl['renderer'][:40]}...")
 
@@ -138,7 +141,7 @@ if __name__ == "__main__":
     print(f"  {ua[:70]}...")
 
     print(f"\n示例请求头 (SheerID):")
-    headers = get_headers(for_sheerid=True)
+    headers = get_headers()
     for k, v in list(headers.items())[:8]:
         print(f"  {k}: {str(v)[:50]}{'...' if len(str(v)) > 50 else ''}")
 

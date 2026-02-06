@@ -46,21 +46,16 @@ def generate_newrelic_headers() -> dict:
     }
 
 
-def get_headers(for_sheerid: bool = True, with_auth: str = None) -> dict:
-    """
-    生成类浏览器请求头（正确排序）
-
-    参数:
-        for_sheerid: 如果为 True，使用 SheerID 特定的请求头
-        with_auth: 用于 Authorization 请求头的 Bearer token
-    """
+def get_headers() -> dict:
+    """生成 SheerID 专用请求头（正确排序）"""
     # 使用与 TLS 指纹版本匹配的 User-Agent
     ua = get_matched_ua_for_impersonate()
     platform = random.choice(PLATFORMS)
     language = random.choice(LANGUAGES)
+    nr_headers = generate_newrelic_headers()
 
-    # 基础请求头（像真实浏览器一样正确排序）
-    headers = {
+    # 请求头（像真实浏览器一样正确排序）
+    return {
         "accept": "application/json, text/plain, */*",
         "accept-encoding": "gzip, deflate, br, zstd",
         "accept-language": language,
@@ -73,29 +68,13 @@ def get_headers(for_sheerid: bool = True, with_auth: str = None) -> dict:
         "sec-fetch-mode": "cors",
         "sec-fetch-site": "same-origin",
         "user-agent": ua,
+        "content-type": "application/json",
+        "clientversion": "2.158.0",
+        "clientname": "jslib",
+        "origin": "https://services.sheerid.com",
+        "referer": "https://services.sheerid.com/",
+        **nr_headers,
     }
-
-    if for_sheerid:
-        nr_headers = generate_newrelic_headers()
-        headers.update(
-            {
-                "content-type": "application/json",
-                "clientversion": "2.158.0",
-                "clientname": "jslib",
-                "origin": "https://services.sheerid.com",
-                "referer": "https://services.sheerid.com/",
-                **nr_headers,  # 包含 NewRelic 追踪请求头
-            }
-        )
-
-    if with_auth:
-        headers["authorization"] = f"Bearer {with_auth}"
-        headers["origin"] = "https://chatgpt.com"
-        headers["referer"] = "https://chatgpt.com/"
-        headers["oai-device-id"] = str(uuid.uuid4())
-        headers["oai-language"] = "en-US"
-
-    return headers
 
 
 def get_matched_ua_for_impersonate(impersonate: str = None) -> str:

@@ -29,7 +29,7 @@ class GeminiVerifier:
         self.url = url
         self.vid = self._parse_id(url)
         
-        # 高通过率模式：强制要求 verificationId
+        # 强制要求 verificationId
         if not self.vid:
             raise ValueError(
                 "[验证错误] 无法从 URL 中提取 verificationId。"
@@ -68,7 +68,7 @@ class GeminiVerifier:
     ) -> Tuple[Dict, int]:
         self._random_delay()
         try:
-            headers = get_headers(for_sheerid=True)
+            headers = get_headers()
             resp = self.client.request(
                 method, f"{SHEERID_API_URL}{endpoint}", json=body, headers=headers
             )
@@ -218,7 +218,10 @@ class GeminiVerifier:
             # 步骤3: 如需要则跳过SSO
             if current_step in ["sso", "collectStudentPersonalInfo"]:
                 print("   ▶ 步骤 3/5: 跳过SSO...")
-                self._request("DELETE", f"/verification/{self.vid}/step/sso")
+                sso_resp, sso_status = self._request("DELETE", f"/verification/{self.vid}/step/sso")
+                if sso_status != 200:
+                    raise RuntimeError(f"SSO 跳过失败: HTTP {sso_status}")
+                current_step = sso_resp.get("currentStep", "")
 
             # 步骤4: 上传文档
             print("   ▶ 步骤 4/5: 上传文档...")
@@ -235,14 +238,17 @@ class GeminiVerifier:
                 "POST", f"/verification/{self.vid}/step/docUpload", upload_body
             )
 
+            # 关键字段为空直接报错
             if not data.get("documents"):
-                stats.record(self.org["name"], False)
-                return {"success": False, "error": "未获取到上传URL"}
-
+                raise RuntimeError("未获取到文档上传信息")
+            
             upload_url = data["documents"][0].get("uploadUrl")
+            if not upload_url:
+                raise RuntimeError("未获取到上传URL")
+            
             if not self._upload_s3(upload_url, doc):
                 stats.record(self.org["name"], False)
-                return {"success": False, "error": "上传失败"}
+                raise RuntimeError("S3 上传失败")
 
             print("     ✅ 文档上传成功！")
 
@@ -265,6 +271,7 @@ class GeminiVerifier:
                     "redirectUrl": data.get("redirectUrl"),
                 }
             elif final_step == "pending":
+                # pending 状态不记录为失败（等待人工审核）
                 return {
                     "success": False,
                     "pending": True,
