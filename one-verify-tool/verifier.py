@@ -28,7 +28,17 @@ class GeminiVerifier:
     def __init__(self, url: str, proxy: str = None):
         self.url = url
         self.vid = self._parse_id(url)
-        self.fingerprint = get_fingerprint()
+        
+        # 高通过率模式：强制要求 verificationId
+        if not self.vid:
+            raise ValueError(
+                "[验证错误] 无法从 URL 中提取 verificationId。"
+                "\n请确保 URL 格式正确，包含 verificationId 参数。"
+                "\n示例: https://services.sheerid.com/verify/xxx?verificationId=abc123"
+            )
+        
+        # 使用 verificationId 作为指纹种子，确保同一验证会话中指纹一致
+        self.fingerprint = get_fingerprint(self.vid)
 
         # 使用 curl_cffi 反检测会话（强制要求）
         self.client, self.lib_name, self.impersonate_target = create_session(proxy)
