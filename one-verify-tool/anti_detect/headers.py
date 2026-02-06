@@ -1,19 +1,26 @@
 """
 请求头生成模块
 生成类浏览器请求头和 NewRelic 追踪头
+
+优化内容：
+- 根据 User-Agent 确定性选择匹配的 platform
+- 确保 sec-ch-ua、sec-ch-ua-platform 与 User-Agent 完全一致
+- 根据 Chrome 版本动态生成正确的 sec-ch-ua 头
 """
 
 import base64
 import json
 import random
+import re
 import time
 import uuid
 
 from .config import (
-    PLATFORMS,
     LANGUAGES,
     USER_AGENTS_CHROME,
     DEFAULT_IMPERSONATE,
+    UA_PLATFORM_MAP,
+    CHROME_VERSION_SEC_CH_UA,
 )
 
 
@@ -46,11 +53,49 @@ def generate_newrelic_headers() -> dict:
     }
 
 
+def _extract_chrome_version(ua: str) -> str:
+    """从 User-Agent 中提取 Chrome 版本号"""
+    match = re.search(r"Chrome/(\d+)\.", ua)
+    return match.group(1) if match else "131"
+
+
+def _get_platform_for_ua(ua: str) -> tuple:
+    """
+    根据 User-Agent 确定性地返回匹配的平台信息
+    
+    返回: (platform_name, sec_ch_ua_platform, sec_ch_ua)
+    """
+    # 提取 Chrome 版本以生成正确的 sec-ch-ua
+    chrome_version = _extract_chrome_version(ua)
+    sec_ch_ua = CHROME_VERSION_SEC_CH_UA.get(
+        chrome_version,
+        CHROME_VERSION_SEC_CH_UA["131"]  # 默认使用 131
+    )
+    
+    # 根据 UA 内容匹配平台
+    for ua_pattern, platform_info in UA_PLATFORM_MAP.items():
+        if ua_pattern in ua:
+            platform_name, sec_ch_ua_platform, _ = platform_info
+            return (platform_name, sec_ch_ua_platform, sec_ch_ua)
+    
+    # 默认返回 Windows 平台
+    return ("Windows", '"Windows"', sec_ch_ua)
+
+
 def get_headers() -> dict:
-    """生成 SheerID 专用请求头（正确排序）"""
+    """
+    生成 SheerID 专用请求头（确保一致性）
+    
+    关键改进：
+    - User-Agent 与 sec-ch-ua-platform 保持一致
+    - sec-ch-ua 版本与 User-Agent 中的 Chrome 版本匹配
+    """
     # 使用与 TLS 指纹版本匹配的 User-Agent
     ua = get_matched_ua_for_impersonate()
-    platform = random.choice(PLATFORMS)
+    
+    # 根据 UA 确定性选择匹配的平台（而非随机）
+    platform_name, sec_ch_ua_platform, sec_ch_ua = _get_platform_for_ua(ua)
+    
     language = random.choice(LANGUAGES)
     nr_headers = generate_newrelic_headers()
 
@@ -61,9 +106,9 @@ def get_headers() -> dict:
         "accept-language": language,
         "cache-control": "no-cache",
         "pragma": "no-cache",
-        "sec-ch-ua": platform[2],
+        "sec-ch-ua": sec_ch_ua,
         "sec-ch-ua-mobile": "?0",
-        "sec-ch-ua-platform": platform[1],
+        "sec-ch-ua-platform": sec_ch_ua_platform,
         "sec-fetch-dest": "empty",
         "sec-fetch-mode": "cors",
         "sec-fetch-site": "same-origin",

@@ -36,6 +36,12 @@ from .config import (
     PLATFORMS,
     WEBGL_VENDORS,
     WEBGL_RENDERERS,
+    UA_PLATFORM_MAP,
+    CHROME_VERSION_SEC_CH_UA,
+    COMMON_FONTS_WINDOWS,
+    COMMON_FONTS_MAC,
+    COMMON_PLUGINS,
+    NAVIGATOR_PROPERTIES,
 )
 # 指纹生成
 from .fingerprint import (
@@ -43,6 +49,12 @@ from .fingerprint import (
     get_canvas_fingerprint,
     get_webgl_fingerprint,
     get_audio_fingerprint,
+    get_fonts_fingerprint,
+    get_plugins_fingerprint,
+    get_webrtc_fingerprint,
+    get_navigator_fingerprint,
+    get_screen_fingerprint,
+    get_timezone_fingerprint,
     get_full_fingerprint,
 )
 # 欺诈处理
@@ -87,11 +99,23 @@ __all__ = [
     "PLATFORMS",
     "WEBGL_VENDORS",
     "WEBGL_RENDERERS",
+    "UA_PLATFORM_MAP",
+    "CHROME_VERSION_SEC_CH_UA",
+    "COMMON_FONTS_WINDOWS",
+    "COMMON_FONTS_MAC",
+    "COMMON_PLUGINS",
+    "NAVIGATOR_PROPERTIES",
     # 指纹
     "get_fingerprint",
     "get_canvas_fingerprint",
     "get_webgl_fingerprint",
     "get_audio_fingerprint",
+    "get_fonts_fingerprint",
+    "get_plugins_fingerprint",
+    "get_webrtc_fingerprint",
+    "get_navigator_fingerprint",
+    "get_screen_fingerprint",
+    "get_timezone_fingerprint",
     "get_full_fingerprint",
     # 请求头
     "generate_newrelic_headers",

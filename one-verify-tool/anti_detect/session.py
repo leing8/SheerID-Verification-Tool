@@ -15,7 +15,7 @@ except ImportError:
         "请运行: pip install numpy"
     )
 
-from .config import DEFAULT_IMPERSONATE, IMPERSONATE_OPTIONS, CHROME_VERSIONS, USER_AGENTS, RESOLUTIONS
+from .config import DEFAULT_IMPERSONATE, IMPERSONATE_OPTIONS
 from .headers import get_headers
 from .proxy import validate_proxy, check_proxy_type
 
@@ -190,6 +190,8 @@ def warm_session(session, program_id: str = None, headers: dict = None):
 
 def print_anti_detect_info():
     """打印反检测配置信息"""
+    from .config import CHROME_VERSIONS, USER_AGENTS, RESOLUTIONS
+    
     session, lib, imp = create_session()
     print(f"\n{'=' * 50}")
     print(f"反检测配置")

@@ -138,15 +138,15 @@ class GeminiVerifier:
             print(f"   🔑 验证ID: {self.vid[:20]}...")
             print(f"   📍 起始步骤: {current_step}")
 
-            # 步骤1: 生成文档
+            # 步骤1: 生成文档（使用 verificationId 作为种子确保一致性）
             doc_type = "transcript" if random.random() < 0.7 else "id_card"
             if doc_type == "transcript":
                 print("\n   ▶ 步骤 1/5: 生成学术成绩单...")
-                doc = generate_transcript(first, last, self.org["name"], dob)
+                doc = generate_transcript(first, last, self.org["name"], dob, seed=self.vid)
                 filename = "transcript.png"
             else:
                 print("\n   ▶ 步骤 1/5: 生成学生证...")
-                doc = generate_student_id(first, last, self.org["name"])
+                doc = generate_student_id(first, last, self.org["name"], seed=self.vid)
                 filename = "student_card.png"
             print(f"     📄 文件大小: {len(doc) / 1024:.1f} KB")
 

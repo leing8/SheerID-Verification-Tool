@@ -3,12 +3,21 @@
 生成虚拟学术成绩单和学生证
 """
 
+import hashlib
 import random
 import time
 from datetime import datetime
 from io import BytesIO
 
 from PIL import Image, ImageDraw, ImageFont
+
+
+def _get_seeded_random(seed: str) -> random.Random:
+    """获取基于种子的随机数生成器"""
+    rng = random.Random()
+    if seed:
+        rng.seed(int(hashlib.sha256(seed.encode()).hexdigest(), 16) % (2**32))
+    return rng
 
 
 def get_current_semester() -> str:
@@ -28,8 +37,19 @@ def get_current_semester() -> str:
         return f"FALL {year}"
 
 
-def generate_transcript(first: str, last: str, school: str, dob: str) -> bytes:
-    """生成虚拟学术成绩单（成功率较高）"""
+def generate_transcript(first: str, last: str, school: str, dob: str, seed: str = None) -> bytes:
+    """
+    生成虚拟学术成绩单（成功率较高）
+    
+    参数:
+        first: 名
+        last: 姓
+        school: 学校名称
+        dob: 出生日期
+        seed: 随机种子（verificationId），用于确定性生成
+    """
+    rng = _get_seeded_random(seed)
+    
     w, h = 850, 1100
     img = Image.new("RGB", (w, h), (255, 255, 255))
     draw = ImageDraw.Draw(img)
@@ -59,10 +79,12 @@ def generate_transcript(first: str, last: str, school: str, dob: str) -> bytes:
 
     # 2. 学生信息
     y = 150
+    # 使用确定性随机生成学生 ID
+    student_id = rng.randint(10000000, 99999999)
     draw.text((50, y), f"Student Name: {first} {last}", fill=(0, 0, 0), font=font_bold)
     draw.text(
         (w - 300, y),
-        f"Student ID: {random.randint(10000000, 99999999)}",
+        f"Student ID: {student_id}",
         fill=(0, 0, 0),
         font=font_text,
     )
@@ -134,14 +156,24 @@ def generate_transcript(first: str, last: str, school: str, dob: str) -> bytes:
     return buf.getvalue()
 
 
-def generate_student_id(first: str, last: str, school: str) -> bytes:
-    """生成虚拟学生证（改进版）"""
+def generate_student_id(first: str, last: str, school: str, seed: str = None) -> bytes:
+    """
+    生成虚拟学生证（改进版）
+    
+    参数:
+        first: 名
+        last: 姓
+        school: 学校名称
+        seed: 随机种子（verificationId），用于确定性生成
+    """
+    rng = _get_seeded_random(seed)
+    
     w, h = 650, 400
-    # 背景颜色随机微调
+    # 背景颜色使用确定性随机微调
     bg_color = (
-        random.randint(240, 255),
-        random.randint(240, 255),
-        random.randint(240, 255),
+        rng.randint(240, 255),
+        rng.randint(240, 255),
+        rng.randint(240, 255),
     )
     img = Image.new("RGB", (w, h), bg_color)
     draw = ImageDraw.Draw(img)
@@ -156,11 +188,11 @@ def generate_student_id(first: str, last: str, school: str) -> bytes:
             f"无法加载字体文件，请确保系统已安装 Arial 字体: {e}"
         )
 
-    # 根据学校名称哈希生成一致但多样化的页眉颜色
+    # 根据种子生成一致但多样化的页眉颜色
     header_color = (
-        random.randint(0, 50),
-        random.randint(0, 50),
-        random.randint(50, 150),
+        rng.randint(0, 50),
+        rng.randint(0, 50),
+        rng.randint(50, 150),
     )
 
     draw.rectangle([(0, 0), (w, 80)], fill=header_color)
@@ -180,9 +212,11 @@ def generate_student_id(first: str, last: str, school: str) -> bytes:
     draw.text((x_info, y), f"{first} {last}", fill=(0, 0, 0), font=font_bold)
     y += 40
     draw.text((x_info, y), "Student ID:", fill=(100, 100, 100), font=font_sm)
+    # 使用确定性随机生成学生 ID
+    student_id = rng.randint(10000000, 99999999)
     draw.text(
         (x_info + 80, y),
-        str(random.randint(10000000, 99999999)),
+        str(student_id),
         fill=(0, 0, 0),
         font=font_md,
     )
@@ -205,7 +239,8 @@ def generate_student_id(first: str, last: str, school: str) -> bytes:
     draw.rectangle([(0, 320), (w, 380)], fill=(255, 255, 255))
     for i in range(40):
         x = 50 + i * 14
-        if random.random() > 0.3:
+        # 使用确定性随机生成条码
+        if rng.random() > 0.3:
             draw.rectangle([(x, 330), (x + 8, 370)], fill=(0, 0, 0))
 
     buf = BytesIO()
