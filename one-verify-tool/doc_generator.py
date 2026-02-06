@@ -5,8 +5,27 @@
 
 import random
 import time
-from PIL import Image, ImageDraw, ImageFont
+from datetime import datetime
 from io import BytesIO
+
+from PIL import Image, ImageDraw, ImageFont
+
+
+def get_current_semester() -> str:
+    """根据当前日期动态生成学期信息"""
+    now = datetime.now()
+    year = now.year
+    month = now.month
+
+    # 1-5月: 春季学期
+    # 6-8月: 夏季学期
+    # 9-12月: 秋季学期
+    if month <= 5:
+        return f"SPRING {year}"
+    elif month <= 8:
+        return f"SUMMER {year}"
+    else:
+        return f"FALL {year}"
 
 
 def generate_transcript(first: str, last: str, school: str, dob: str) -> bytes:
@@ -20,8 +39,10 @@ def generate_transcript(first: str, last: str, school: str, dob: str) -> bytes:
         font_title = ImageFont.truetype("arial.ttf", 24)
         font_text = ImageFont.truetype("arial.ttf", 16)
         font_bold = ImageFont.truetype("arialbd.ttf", 16)
-    except Exception:
-        font_header = font_title = font_text = font_bold = ImageFont.load_default()
+    except Exception as e:
+        raise RuntimeError(
+            f"无法加载字体文件，请确保系统已安装 Arial 字体: {e}"
+        )
 
     # 1. 页眉
     draw.text(
@@ -59,7 +80,7 @@ def generate_transcript(first: str, last: str, school: str, dob: str) -> bytes:
     draw.rectangle([(50, y), (w - 50, y + 40)], fill=(240, 240, 240))
     draw.text(
         (w // 2, y + 20),
-        "CURRENT STATUS: ENROLLED (SPRING 2025)",
+        f"CURRENT STATUS: ENROLLED ({get_current_semester()})",
         fill=(0, 100, 0),
         font=font_bold,
         anchor="mm",
@@ -130,8 +151,10 @@ def generate_student_id(first: str, last: str, school: str) -> bytes:
         font_md = ImageFont.truetype("arial.ttf", 18)
         font_sm = ImageFont.truetype("arial.ttf", 14)
         font_bold = ImageFont.truetype("arialbd.ttf", 20)
-    except Exception:
-        font_lg = font_md = font_sm = font_bold = ImageFont.load_default()
+    except Exception as e:
+        raise RuntimeError(
+            f"无法加载字体文件，请确保系统已安装 Arial 字体: {e}"
+        )
 
     # 根据学校名称哈希生成一致但多样化的页眉颜色
     header_color = (
@@ -168,9 +191,12 @@ def generate_student_id(first: str, last: str, school: str) -> bytes:
     draw.text((x_info + 80, y), "Student", fill=(0, 0, 0), font=font_md)
     y += 30
     draw.text((x_info, y), "Valid Thru:", fill=(100, 100, 100), font=font_sm)
+    # 有效期：如果当前月份 <= 5月，有效期为当年12月；否则为下一年12月
+    now = datetime.now()
+    valid_year = now.year if now.month <= 5 else now.year + 1
     draw.text(
         (x_info + 80, y),
-        f"05/{int(time.strftime('%Y')) + 1}",
+        f"12/{valid_year}",
         fill=(0, 0, 0),
         font=font_md,
     )

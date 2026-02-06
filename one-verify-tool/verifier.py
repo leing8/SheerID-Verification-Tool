@@ -5,36 +5,21 @@ Gemini 验证器核心模块
 
 import random
 import re
-import sys
 from typing import Dict, Optional, Tuple
 
-try:
-    import httpx
-except ImportError:
-    print("❌ 错误: 需要安装 httpx。安装命令: pip install httpx")
-    sys.exit(1)
-
+# 强制导入反检测模块（无降级方案）
+from anti_detect import (
+    get_headers,
+    get_fingerprint,
+    create_session,
+    random_delay,
+    handle_fraud_rejection,
+)
 from config import SHEERID_API_URL, PROGRAM_ID
+from doc_generator import generate_transcript, generate_student_id
 from stats import stats
 from universities import select_university
 from utils import generate_name, generate_email, generate_birth_date
-from doc_generator import generate_transcript, generate_student_id
-
-# 尝试导入反检测模块
-try:
-    from anti_detect import (
-        get_headers,
-        get_fingerprint,
-        create_session,
-        random_delay,
-        handle_fraud_rejection,
-    )
-
-    HAS_ANTI_DETECT = True
-except ImportError:
-    HAS_ANTI_DETECT = False
-    print("[警告] 反检测模块未找到，使用基础请求头")
-    print("[警告] 没有反检测模块，被检测风险极高！")
 
 
 class GeminiVerifier:
@@ -43,22 +28,13 @@ class GeminiVerifier:
     def __init__(self, url: str, proxy: str = None):
         self.url = url
         self.vid = self._parse_id(url)
-        self.fingerprint = get_fingerprint() if HAS_ANTI_DETECT else self._basic_fingerprint()
+        self.fingerprint = get_fingerprint()
 
-        # 使用增强版反检测会话
-        if HAS_ANTI_DETECT:
-            self.client, self.lib_name, self.impersonate_target = create_session(proxy)
-            print(
-                f"[信息] 会话已创建，使用 {self.lib_name}（伪装为: {self.impersonate_target}）"
-            )
-        else:
-            proxy_url = None
-            if proxy:
-                if not proxy.startswith("http"):
-                    proxy = f"http://{proxy}"
-                proxy_url = proxy
-            self.client = httpx.Client(timeout=30, proxy=proxy_url)
-            self.lib_name = "httpx"
+        # 使用 curl_cffi 反检测会话（强制要求）
+        self.client, self.lib_name, self.impersonate_target = create_session(proxy)
+        print(
+            f"[信息] 会话已创建，使用 {self.lib_name}（伪装为: {self.impersonate_target}）"
+        )
 
         self.org = None
 
@@ -66,13 +42,7 @@ class GeminiVerifier:
         if hasattr(self, "client"):
             self.client.close()
 
-    @staticmethod
-    def _basic_fingerprint() -> str:
-        """基础指纹生成（无反检测模块时使用）"""
-        import hashlib
-        import time
-        components = [str(time.time()), str(random.random())]
-        return hashlib.md5("|".join(components).encode()).hexdigest()
+
 
     @staticmethod
     def _parse_id(url: str) -> Optional[str]:
@@ -81,24 +51,14 @@ class GeminiVerifier:
 
     def _random_delay(self):
         """请求间延迟"""
-        if HAS_ANTI_DETECT:
-            random_delay()
-        else:
-            import time
-            from config import MIN_DELAY, MAX_DELAY
-            time.sleep(random.randint(MIN_DELAY, MAX_DELAY) / 1000)
+        random_delay()
 
     def _request(
         self, method: str, endpoint: str, body: Dict = None
     ) -> Tuple[Dict, int]:
         self._random_delay()
         try:
-            # 如果可用则使用反检测请求头
-            headers = (
-                get_headers(for_sheerid=True)
-                if HAS_ANTI_DETECT
-                else {"Content-Type": "application/json"}
-            )
+            headers = get_headers(for_sheerid=True)
             resp = self.client.request(
                 method, f"{SHEERID_API_URL}{endpoint}", json=body, headers=headers
             )
@@ -111,46 +71,17 @@ class GeminiVerifier:
             raise Exception(f"请求失败: {e}")
 
     def _upload_s3(self, url: str, data: bytes) -> bool:
-        # 不同会话实现接受不同的关键字参数
-        # 尝试多种变体以最大化兼容性（curl_cffi、httpx、requests）
-        attempts = [
-            lambda: self.client.put(
-                url, content=data, headers={"Content-Type": "image/png"}, timeout=60
-            ),
-            lambda: self.client.put(
-                url, data=data, headers={"Content-Type": "image/png"}, timeout=60
-            ),
-            lambda: self.client.request(
-                "PUT", url, data=data, headers={"Content-Type": "image/png"}, timeout=60
-            ),
-        ]
-
-        last_exc = None
-        for fn in attempts:
-            try:
-                resp = fn()
-                if hasattr(resp, "status_code"):
-                    if 200 <= resp.status_code < 300:
-                        return True
-                    try:
-                        body = resp.json()
-                    except Exception:
-                        body = getattr(resp, "text", str(resp))
-                    print(f"     ❗ S3上传失败: HTTP {resp.status_code} | {body}")
-                    return False
-                else:
-                    if resp:
-                        return True
-                    return False
-            except TypeError as e:
-                last_exc = e
-                continue
-            except Exception as e:
-                last_exc = e
-                continue
-
-        print(f"     ❗ S3上传尝试全部失败。最后错误: {last_exc}")
-        return False
+        """上传文件到 S3（强制使用 curl_cffi）"""
+        resp = self.client.put(
+            url, data=data, headers={"Content-Type": "image/png"}, timeout=60
+        )
+        if 200 <= resp.status_code < 300:
+            return True
+        try:
+            body = resp.json()
+        except Exception:
+            body = getattr(resp, "text", str(resp))
+        raise Exception(f"S3上传失败: HTTP {resp.status_code} | {body}")
 
     def check_link(self) -> Dict:
         """检查验证链接是否有效"""
@@ -200,18 +131,18 @@ class GeminiVerifier:
             # 步骤1: 生成文档
             doc_type = "transcript" if random.random() < 0.7 else "id_card"
             if doc_type == "transcript":
-                print("\n   ▶ 步骤 1/3: 生成学术成绩单...")
+                print("\n   ▶ 步骤 1/5: 生成学术成绩单...")
                 doc = generate_transcript(first, last, self.org["name"], dob)
                 filename = "transcript.png"
             else:
-                print("\n   ▶ 步骤 1/3: 生成学生证...")
+                print("\n   ▶ 步骤 1/5: 生成学生证...")
                 doc = generate_student_id(first, last, self.org["name"])
                 filename = "student_card.png"
             print(f"     📄 文件大小: {len(doc) / 1024:.1f} KB")
 
             # 步骤2: 提交信息（如果已过此步骤则跳过）
             if current_step == "collectStudentPersonalInfo":
-                print("   ▶ 步骤 2/3: 提交学生信息...")
+                print("   ▶ 步骤 2/5: 提交学生信息...")
                 body = {
                     "firstName": first,
                     "lastName": last,
@@ -253,12 +184,11 @@ class GeminiVerifier:
                     error_ids = data.get("errorIds", [])
                     # 检查欺诈拒绝
                     if "fraudRulesReject" in str(error_ids):
-                        if HAS_ANTI_DETECT:
-                            handle_fraud_rejection(
-                                retry_count=0,
-                                error_payload=data,
-                                message=f"学校: {self.org['name']}",
-                            )
+                        handle_fraud_rejection(
+                            retry_count=0,
+                            error_payload=data,
+                            message=f"学校: {self.org['name']}",
+                        )
                     stats.record(self.org["name"], False)
                     return {
                         "success": False,
@@ -269,15 +199,15 @@ class GeminiVerifier:
                 print(f"     📍 当前步骤: {data.get('currentStep')}")
                 current_step = data.get("currentStep", "")
             elif current_step in ["docUpload", "sso"]:
-                print("   ▶ 步骤 2/3: 跳过（已通过信息提交步骤）...")
+                print("   ▶ 步骤 2/5: 跳过（已通过信息提交步骤）...")
             else:
                 print(
-                    f"   ▶ 步骤 2/3: 未知步骤 '{current_step}'，尝试继续..."
+                    f"   ▶ 步骤 2/5: 未知步骤 '{current_step}'，尝试继续..."
                 )
 
             # 步骤3: 如需要则跳过SSO
             if current_step in ["sso", "collectStudentPersonalInfo"]:
-                print("   ▶ 步骤 3/4: 跳过SSO...")
+                print("   ▶ 步骤 3/5: 跳过SSO...")
                 self._request("DELETE", f"/verification/{self.vid}/step/sso")
 
             # 步骤4: 上传文档

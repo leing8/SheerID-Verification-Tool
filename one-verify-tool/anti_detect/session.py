@@ -15,18 +15,15 @@ def random_delay(min_ms: int = 300, max_ms: int = 1200):
     """
     使用 Gamma 分布的随机延迟以模拟人类行为
     Gamma 分布比均匀随机更逼真
+    
+    依赖: numpy（强制要求，用于高通过率）
     """
-    try:
-        import numpy as np
+    import numpy as np
 
-        # Gamma 分布更好地模拟人类反应时间
-        shape, scale = 2.0, (max_ms - min_ms) / 4000
-        delay = min_ms / 1000 + np.random.gamma(shape, scale)
-        delay = min(delay, max_ms / 1000)  # 限制最大值
-    except ImportError:
-        # 回退到带轻微变化的基础随机
-        delay = random.randint(min_ms, max_ms) / 1000
-        delay += random.uniform(0, 0.15)  # 添加额外随机性
+    # Gamma 分布更好地模拟人类反应时间
+    shape, scale = 2.0, (max_ms - min_ms) / 4000
+    delay = min_ms / 1000 + np.random.gamma(shape, scale)
+    delay = min(delay, max_ms / 1000)  # 限制最大值
 
     time.sleep(delay)
 
@@ -52,11 +49,9 @@ def get_random_impersonate(browser_type: str = None) -> str:
 
 def create_session(proxy: str = None, impersonate: str = None):
     """
-    使用最佳可用库创建 HTTP 会话
-    优先级: curl_cffi（带模拟） > cloudscraper > httpx > requests
+    使用 curl_cffi 创建 HTTP 会话（强制要求）
 
-    关键: 强烈建议使用带 Chrome 模拟的 curl_cffi。
-    没有它，SheerID 可以检测 Python 的 TLS 指纹（JA3/JA4）。
+    curl_cffi 是通过 SheerID 验证的必要条件，没有它 TLS 指纹会被检测。
 
     参数:
         proxy: 代理 URL（如需要会进行格式化）
@@ -65,7 +60,14 @@ def create_session(proxy: str = None, impersonate: str = None):
 
     返回:
         tuple: (session, library_name, impersonate_version)
+
+    异常:
+        ImportError: 如果 curl_cffi 未安装
+        RuntimeError: 如果无法创建有效会话
     """
+    # 强制导入 curl_cffi，不提供降级方案
+    from curl_cffi import requests as curl_requests
+
     # 验证并格式化代理
     proxy = validate_proxy(proxy)
     proxies = None
@@ -78,105 +80,18 @@ def create_session(proxy: str = None, impersonate: str = None):
             print("[警告] ⚠️  检测到数据中心代理！SheerID 可能会拒绝请求。")
             print("[警告]    强烈建议使用住宅代理。")
 
-    # 确定模拟版本
+    # 确定模拟版本（强制使用最新版本，不降级）
     imp_version = impersonate or DEFAULT_IMPERSONATE
 
-    # 首先尝试 curl_cffi（最佳 - TLS 指纹伪装）
-    try:
-        from curl_cffi import requests as curl_requests
-
-        # 测试是否支持模拟
-        try:
-            if proxies:
-                session = curl_requests.Session(
-                    proxies=proxies, impersonate=imp_version
-                )
-            else:
-                session = curl_requests.Session(impersonate=imp_version)
-
-            print(f"[反检测] ✅ 使用 curl_cffi，模拟 {imp_version}")
-            print(f"[反检测]    TLS 指纹将匹配真实 Chrome 浏览器")
-            return session, "curl_cffi", imp_version
-
-        except Exception as e:
-            # 如果版本不支持则尝试不使用模拟
-            print(
-                f"[警告] 不支持模拟 '{imp_version}'，尝试回退..."
-            )
-
-            # 尝试旧版本
-            for fallback_ver in ["chrome120", "chrome110", "chrome100"]:
-                try:
-                    if proxies:
-                        session = curl_requests.Session(
-                            proxies=proxies, impersonate=fallback_ver
-                        )
-                    else:
-                        session = curl_requests.Session(impersonate=fallback_ver)
-                    print(
-                        f"[反检测] ✅ 使用 curl_cffi，模拟 {fallback_ver}"
-                    )
-                    return session, "curl_cffi", fallback_ver
-                except Exception:
-                    continue
-
-            # 最后手段 - 不使用模拟
-            if proxies:
-                session = curl_requests.Session(proxies=proxies)
-            else:
-                session = curl_requests.Session()
-            print("[反检测] ⚠️  curl_cffi 已加载但模拟失败")
-            print("[反检测]    TLS 指纹可能被检测到！")
-            return session, "curl_cffi", None
-
-    except ImportError:
-        print("\n" + "=" * 60)
-        print("⚠️  严重警告: curl_cffi 未安装！")
-        print("=" * 60)
-        print("没有 curl_cffi，您的 TLS 指纹是可检测的。")
-        print("SheerID 很可能会拒绝您的验证请求。")
-        print("")
-        print("立即安装: pip install curl_cffi")
-        print("=" * 60 + "\n")
-
-    # 尝试 cloudscraper（Cloudflare 绕过，但无 TLS 伪装）
-    try:
-        import cloudscraper
-
-        session = cloudscraper.create_scraper(
-            browser={"browser": "chrome", "platform": "windows", "mobile": False}
-        )
-        if proxies:
-            session.proxies = proxies
-        print("[反检测] ⚠️  使用 cloudscraper（无 TLS 模拟）")
-        return session, "cloudscraper", None
-    except ImportError:
-        pass
-
-    # 尝试 httpx（异步支持，但 TLS 可检测）
-    try:
-        import httpx
-
-        proxy_url = proxies.get("all://") if proxies else None
-        session = httpx.Client(timeout=30, proxy=proxy_url)
-        print("[反检测] ⚠️  使用 httpx（TLS 指纹可被检测！）")
-        print(
-            "[反检测]    预期成功率: ~20-40%（使用 curl_cffi 可达 60-80%）"
-        )
-        return session, "httpx", None
-    except ImportError:
-        pass
-
-    # 回退到 requests（最容易被检测）
-    import requests
-
-    session = requests.Session()
+    # 创建会话（强制成功，失败则报错）
     if proxies:
-        session.proxies = proxies
-    print("[反检测] ❌ 使用 requests（检测风险极高！）")
-    print("[反检测]    预期成功率: ~5-20%")
-    print("[反检测]    请运行: pip install curl_cffi")
-    return session, "requests", None
+        session = curl_requests.Session(proxies=proxies, impersonate=imp_version)
+    else:
+        session = curl_requests.Session(impersonate=imp_version)
+
+    print(f"[反检测] ✅ 使用 curl_cffi，模拟 {imp_version}")
+    print(f"[反检测]    TLS 指纹将匹配真实 Chrome 浏览器")
+    return session, "curl_cffi", imp_version
 
 
 def make_request(session, method: str, url: str, impersonate: str = None, **kwargs):
@@ -263,41 +178,7 @@ def warm_session(session, program_id: str = None, headers: dict = None):
     return session
 
 
-def generate_student_email(
-    first_name: str, last_name: str, university: dict = None
-) -> str:
-    """
-    生成与大学域名匹配的逼真学生邮箱
-
-    参数:
-        first_name: 学生名
-        last_name: 学生姓
-        university: 包含 'domain' 键的大学字典（可选）
-
-    返回:
-        生成的邮箱地址
-    """
-    first = first_name.lower().strip()
-    last = last_name.lower().strip()
-
-    domain = university.get("domain", "") if university else ""
-
-    if not domain:
-        # 通用邮箱提供商
-        domains = ["gmail.com", "outlook.com", "yahoo.com", "icloud.com"]
-        domain = random.choice(domains)
-
-    # 常见大学邮箱格式
-    patterns = [
-        f"{first[0]}{last}@{domain}",  # jsmith@university.edu
-        f"{first}.{last}@{domain}",  # john.smith@university.edu
-        f"{first}{last[0]}@{domain}",  # johns@university.edu
-        f"{first}_{last}@{domain}",  # john_smith@university.edu
-        f"{last}{first[0]}@{domain}",  # smithj@university.edu
-        f"{first}{random.randint(1, 99)}@{domain}",  # john42@university.edu
-    ]
-
-    return random.choice(patterns)
+# generate_student_email 已移除，请使用 utils.py 中的 generate_email
 
 
 def print_anti_detect_info():
@@ -307,21 +188,12 @@ def print_anti_detect_info():
     print(f"反检测配置")
     print(f"{'=' * 50}")
     print(f"  HTTP 库: {lib}")
-    print(f"  模拟: {imp or '无（可检测！）'}")
+    print(f"  模拟: {imp}")
     print(f"  User-Agent: {len(USER_AGENTS)} 种变体")
     print(f"  分辨率: {len(RESOLUTIONS)} 种变体")
     print(f"  Chrome 版本: {len(CHROME_VERSIONS)} 个可用")
-
-    if lib == "curl_cffi" and imp:
-        print(f"\n  ✅ TLS 指纹: 伪装为 {imp}")
-        print(f"  ✅ 检测风险: 低")
-    elif lib == "curl_cffi":
-        print(f"\n  ⚠️  TLS 指纹: 部分伪装")
-        print(f"  ⚠️  检测风险: 中")
-    else:
-        print(f"\n  ❌ TLS 指纹: Python 签名（可检测）")
-        print(f"  ❌ 检测风险: 高")
-
+    print(f"\n  ✅ TLS 指纹: 伪装为 {imp}")
+    print(f"  ✅ 检测风险: 低")
     print(f"{'=' * 50}\n")
 
     # 清理

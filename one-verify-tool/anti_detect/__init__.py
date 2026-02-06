@@ -39,7 +39,6 @@ from .config import (
 )
 # 指纹生成
 from .fingerprint import (
-    get_random_user_agent,
     get_fingerprint,
     get_canvas_fingerprint,
     get_webgl_fingerprint,
@@ -72,7 +71,6 @@ from .session import (
     create_session,
     make_request,
     warm_session,
-    generate_student_email,
     print_anti_detect_info,
 )
 
@@ -90,7 +88,6 @@ __all__ = [
     "WEBGL_VENDORS",
     "WEBGL_RENDERERS",
     # 指纹
-    "get_random_user_agent",
     "get_fingerprint",
     "get_canvas_fingerprint",
     "get_webgl_fingerprint",
@@ -111,7 +108,6 @@ __all__ = [
     "create_session",
     "make_request",
     "warm_session",
-    "generate_student_email",
     "print_anti_detect_info",
     # 欺诈
     "FRAUD_ERROR_HELP",

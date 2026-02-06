@@ -15,7 +15,6 @@ from .config import (
     USER_AGENTS_CHROME,
     DEFAULT_IMPERSONATE,
 )
-from .fingerprint import get_random_user_agent
 
 
 def generate_newrelic_headers() -> dict:
@@ -55,7 +54,8 @@ def get_headers(for_sheerid: bool = True, with_auth: str = None) -> dict:
         for_sheerid: 如果为 True，使用 SheerID 特定的请求头
         with_auth: 用于 Authorization 请求头的 Bearer token
     """
-    ua = get_random_user_agent()
+    # 使用与 TLS 指纹版本匹配的 User-Agent
+    ua = get_matched_ua_for_impersonate()
     platform = random.choice(PLATFORMS)
     language = random.choice(LANGUAGES)
 

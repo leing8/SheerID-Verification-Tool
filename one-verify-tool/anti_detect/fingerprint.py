@@ -14,13 +14,7 @@ from .config import (
     LANGUAGES,
     WEBGL_VENDORS,
     WEBGL_RENDERERS,
-    USER_AGENTS,
 )
-
-
-def get_random_user_agent() -> str:
-    """获取随机的 User-Agent 字符串"""
-    return random.choice(USER_AGENTS)
 
 
 def get_fingerprint() -> str:
