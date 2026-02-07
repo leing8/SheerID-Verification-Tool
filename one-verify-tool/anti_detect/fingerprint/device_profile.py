@@ -388,34 +388,47 @@ US_LANGUAGES = [
 ]
 
 
-def generate_device_profile(seed: str, prefer_us: bool = True) -> DeviceProfile:
+def generate_device_profile(seed: str, prefer_us: bool = True, os_type: Optional[str] = None) -> DeviceProfile:
     """
     生成统一的设备档案
     
     参数:
         seed: verificationId，确保同一验证会话中设备配置一致
         prefer_us: 是否优先使用美国配置（用于美国大学验证）
+        os_type: 指定操作系统类型（windows/macos/linux），为 None 时随机选择
     
     返回:
         DeviceProfile 实例，包含完整的一致设备配置
     """
     rng = get_seeded_random(seed)
     
-    # 选择设备模板（优先 Windows 主流配置，最符合学生用户）
-    template_weights = [
-        ("windows_mainstream", 40),
-        ("windows_gaming", 20),
-        ("windows_office", 15),
-        ("macos_pro", 10),
-        ("macos_air", 10),
-        ("linux_workstation", 5),
-    ]
+    # 根据 os_type 筛选可用模板
+    if os_type:
+        os_templates = [(name, w) for name, w in [
+            ("windows_mainstream", 40),
+            ("windows_gaming", 20),
+            ("windows_office", 15),
+            ("macos_pro", 10),
+            ("macos_air", 10),
+            ("linux_workstation", 5),
+        ] if DEVICE_TEMPLATES[name]["os_type"] == os_type]
+        template_weights = os_templates if os_templates else [("windows_mainstream", 100)]
+    else:
+        # 选择设备模板（优先 Windows 主流配置，最符合学生用户）
+        template_weights = [
+            ("windows_mainstream", 40),
+            ("windows_gaming", 20),
+            ("windows_office", 15),
+            ("macos_pro", 10),
+            ("macos_air", 10),
+            ("linux_workstation", 5),
+        ]
     
     # 加权随机选择
     total_weight = sum(w for _, w in template_weights)
     r = rng.randint(0, total_weight - 1)
     cumulative = 0
-    selected_template = "windows_mainstream"
+    selected_template = template_weights[0][0]
     for name, weight in template_weights:
         cumulative += weight
         if r < cumulative:
@@ -432,11 +445,9 @@ def generate_device_profile(seed: str, prefer_us: bool = True) -> DeviceProfile:
     min_cores, max_cores = template["cpu_cores_range"]
     min_mem, max_mem = template["memory_range"]
     cpu_cores = rng.randint(min_cores, max_cores)
-    device_memory = rng.choice([8, 16, 32])
-    if device_memory < min_mem:
-        device_memory = min_mem
-    if device_memory > max_mem:
-        device_memory = max_mem
+    # 基于模板范围筛选有效内存选项
+    memory_options = [m for m in [8, 16, 32] if min_mem <= m <= max_mem]
+    device_memory = rng.choice(memory_options) if memory_options else min_mem
     
     # 选择分辨率
     resolution = rng.choice(template["resolutions"])

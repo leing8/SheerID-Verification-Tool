@@ -96,11 +96,7 @@ def get_full_fingerprint(seed: str, os_type: Optional[str] = None) -> dict:
         seed: verificationId（必须）
         os_type: 操作系统类型，如为 None 则由 DeviceProfile 随机选择
     """
-    device = generate_device_profile(seed, prefer_us=True)
-    
-    # 如果指定了不同的操作系统类型，重新生成
-    if os_type and os_type != device.os_type:
-        device = generate_device_profile(f"{seed}_{os_type}", prefer_us=True)
+    device = generate_device_profile(seed, prefer_us=True, os_type=os_type)
 
     canvas_data = get_canvas_fingerprint(seed, device)
     webgl_data = get_webgl_fingerprint(seed, device)

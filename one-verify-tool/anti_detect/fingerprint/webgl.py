@@ -6,7 +6,7 @@ WebGL 指纹生成模块
 from typing import Optional
 
 from .base import get_seeded_random, generate_deterministic_hash
-from .device_profile import DeviceProfile
+from .device_profile import DeviceProfile, GPU_PROFILES
 
 
 def get_webgl_fingerprint(seed: str, device_profile: Optional[DeviceProfile] = None) -> dict:
@@ -27,7 +27,6 @@ def get_webgl_fingerprint(seed: str, device_profile: Optional[DeviceProfile] = N
         gpu = device_profile.gpu
     else:
         # 向后兼容：没有设备档案时使用默认逻辑
-        from .device_profile import GPU_PROFILES
         gpu_keys = list(GPU_PROFILES.keys())
         gpu = GPU_PROFILES[rng.choice(gpu_keys)]
     
