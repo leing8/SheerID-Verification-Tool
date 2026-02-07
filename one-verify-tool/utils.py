@@ -5,7 +5,7 @@
 
 import random
 from datetime import datetime
-from typing import Tuple
+from typing import Optional, Tuple
 
 # ============ 姓名数据 ============
 FIRST_NAMES = [
@@ -28,27 +28,30 @@ LAST_NAMES = [
 ]
 
 
-def generate_name() -> Tuple[str, str]:
+def generate_name(rng: Optional[random.Random] = None) -> Tuple[str, str]:
     """生成随机姓名"""
-    return random.choice(FIRST_NAMES), random.choice(LAST_NAMES)
+    r = rng or random
+    return r.choice(FIRST_NAMES), r.choice(LAST_NAMES)
 
 
-def generate_email(first: str, last: str, domain: str) -> str:
+def generate_email(first: str, last: str, domain: str, rng: Optional[random.Random] = None) -> str:
     """生成与大学域名匹配的邮箱"""
+    r = rng or random
     patterns = [
-        f"{first[0].lower()}{last.lower()}{random.randint(100, 999)}",
-        f"{first.lower()}.{last.lower()}{random.randint(10, 99)}",
-        f"{last.lower()}{first[0].lower()}{random.randint(100, 999)}",
+        f"{first[0].lower()}{last.lower()}{r.randint(100, 999)}",
+        f"{first.lower()}.{last.lower()}{r.randint(10, 99)}",
+        f"{last.lower()}{first[0].lower()}{r.randint(100, 999)}",
     ]
-    return f"{random.choice(patterns)}@{domain}"
+    return f"{r.choice(patterns)}@{domain}"
 
 
-def generate_birth_date() -> str:
+def generate_birth_date(rng: Optional[random.Random] = None) -> str:
     """生成随机出生日期（典型在校学生年龄范围：18-24岁）"""
+    r = rng or random
     current_year = datetime.now().year
     # 18-24岁范围：出生年份范围为 (当前年份-24) 到 (当前年份-18)
-    year = random.randint(current_year - 24, current_year - 18)
-    month = random.randint(1, 12)
-    day = random.randint(1, 28)
+    year = r.randint(current_year - 24, current_year - 18)
+    month = r.randint(1, 12)
+    day = r.randint(1, 28)
     return f"{year}-{month:02d}-{day:02d}"
 

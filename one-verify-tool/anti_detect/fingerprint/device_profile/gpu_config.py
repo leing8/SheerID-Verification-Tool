@@ -5,9 +5,6 @@ GPU 配置库
 
 from .models import GPUProfile
 
-# ============ GPU 配置库 ============
-# 真实设备参数，确保 WebGL 指纹与 GPU 型号完全匹配
-
 GPU_PROFILES = {
     # NVIDIA RTX 40 系列
     "rtx_4090": GPUProfile(

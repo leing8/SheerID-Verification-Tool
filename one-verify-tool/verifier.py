@@ -3,7 +3,6 @@ Gemini 验证器核心模块
 执行 SheerID 学生身份验证流程
 """
 
-import random
 import re
 from typing import Dict, Optional, Tuple
 
@@ -15,6 +14,7 @@ from anti_detect import (
     random_delay,
     handle_fraud_rejection,
 )
+from anti_detect.fingerprint.base import get_seeded_random
 from config import SHEERID_API_URL, PROGRAM_ID
 from doc_generator import generate_transcript, generate_student_id
 from stats import stats
@@ -123,11 +123,14 @@ class GeminiVerifier:
                 check_data.get("currentStep", "") if check_status == 200 else ""
             )
 
-            # 生成学生信息
-            first, last = generate_name()
+            # 使用 verificationId 作为种子生成一致的学生信息
+            rng = get_seeded_random(self.vid)
+            
+            # 生成学生信息（使用种子随机数确保一致性）
+            first, last = generate_name(rng)
             self.org = select_university()
-            email = generate_email(first, last, self.org["domain"])
-            dob = generate_birth_date()
+            email = generate_email(first, last, self.org["domain"], rng)
+            dob = generate_birth_date(rng)
 
             print(f"\n   🎓 学生: {first} {last}")
             print(f"   📧 邮箱: {email}")
@@ -137,7 +140,7 @@ class GeminiVerifier:
             print(f"   📍 起始步骤: {current_step}")
 
             # 步骤1: 生成文档（使用 verificationId 作为种子确保一致性）
-            doc_type = "transcript" if random.random() < 0.7 else "id_card"
+            doc_type = "transcript" if rng.random() < 0.7 else "id_card"
             if doc_type == "transcript":
                 print("\n   ▶ 步骤 1/5: 生成学术成绩单...")
                 doc = generate_transcript(first, last, self.org["name"], dob, seed=self.vid)
