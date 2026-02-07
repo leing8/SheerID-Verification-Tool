@@ -4,6 +4,7 @@
 """
 
 import random
+from datetime import datetime
 from typing import Tuple
 
 # ============ 姓名数据 ============
@@ -43,8 +44,11 @@ def generate_email(first: str, last: str, domain: str) -> str:
 
 
 def generate_birth_date() -> str:
-    """生成随机出生日期（学生年龄范围）"""
-    year = random.randint(2000, 2006)
+    """生成随机出生日期（典型在校学生年龄范围：18-24岁）"""
+    current_year = datetime.now().year
+    # 18-24岁范围：出生年份范围为 (当前年份-24) 到 (当前年份-18)
+    year = random.randint(current_year - 24, current_year - 18)
     month = random.randint(1, 12)
     day = random.randint(1, 28)
     return f"{year}-{month:02d}-{day:02d}"
+
