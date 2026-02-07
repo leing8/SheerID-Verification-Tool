@@ -12,7 +12,7 @@ from typing import List
 from PIL import Image, ImageDraw
 
 from .base_template import UniversityTemplate
-from ..anti_detection import load_courier_fonts, image_to_format
+from ..anti_detection import load_letter_gothic_fonts, image_to_format
 from ..base import get_seeded_random
 
 
@@ -46,8 +46,6 @@ class HarvardTemplate(UniversityTemplate):
         "student_id": (90, 387),
         # Printed: 右侧（标签 "Printed:" 约在 y=378，x 约 555）
         "printed": (655, 372),
-        # Page Number: 右侧（y=395）
-        "page_number": (630, 405),
         
         # 课程区域
         # 表头 "COURSE TITLE CREDITS EARNED LEVEL GRADE" 约在 y=447
@@ -55,12 +53,12 @@ class HarvardTemplate(UniversityTemplate):
         "semester_label": (40, 470),    # 学期标签，如 "Summer Term 2024"
         "courses_start_y": 495,         # 课程数据起始 Y 坐标
         "course_cols": {                # 各列 X 坐标（根据表头位置对齐）
-            "course": 130,               # COURSE (x≈73)
-            "title": 245,               # TITLE (x≈170)
-            "credits": 455,             # CREDITS (x≈450)
-            "earned": 530,              # EARNED (x≈535)
-            "level": 606,               # LEVEL (x≈615)
-            "grade": 685,               # GRADE (x≈690)
+            "course": 130,
+            "title": 245,
+            "credits": 455,
+            "earned": 530,
+            "level": 606,
+            "grade": 685,
         },
     }
     
@@ -193,7 +191,7 @@ class HarvardTemplate(UniversityTemplate):
             指定格式的图像字节数据
         """
         rng = get_seeded_random(seed)
-        fonts = load_courier_fonts()
+        fonts = load_letter_gothic_fonts()
         
         # 加载模板图片
         if not self.TEMPLATE_PATH.exists():

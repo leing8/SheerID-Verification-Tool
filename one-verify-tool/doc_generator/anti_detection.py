@@ -6,13 +6,14 @@
 
 import random
 from io import BytesIO
+from pathlib import Path
 from typing import Tuple
 
 from PIL import Image, ImageFilter, ImageFont
 
 # 字体缓存，避免重复加载
 _font_cache = {}
-_courier_cache = {}
+_letter_gothic_cache = {}
 
 
 def load_fonts(sizes: Tuple[int, ...] = (32, 24, 18, 16, 14)) -> dict:
@@ -150,7 +151,7 @@ def image_to_bytes(img: Image.Image, rng: random.Random, noise_intensity: float 
     return buf.getvalue()
 
 
-def load_courier_fonts(sizes: Tuple[int, ...] = (14, 12, 11, 10)) -> dict:
+def load_letter_gothic_fonts(sizes: Tuple[int, ...] = (14, 12, 11, 10)) -> dict:
     """
     加载 Letter Gothic Std 等宽字体（Harvard 成绩单专用）
     
@@ -160,64 +161,55 @@ def load_courier_fonts(sizes: Tuple[int, ...] = (14, 12, 11, 10)) -> dict:
         sizes: 需要的字体大小元组
     
     返回:
-        字体字典，包含 "lg", "md", "sm", "xs" 等键
+        字体字典，包含 "lg", "md", "sm", "xs" 等键及其粗体变体
     
     异常:
         RuntimeError: 字体文件不存在
     """
-    cache_key = ("letter_gothic", sizes)
-    if cache_key in _courier_cache:
-        return _courier_cache[cache_key]
+    cache_key = sizes
+    if cache_key in _letter_gothic_cache:
+        return _letter_gothic_cache[cache_key]
     
-    try:
-        from pathlib import Path
-        
-        fonts = {}
-        
-        # Letter Gothic Std 字体路径（按优先级排序）
-        font_paths = [
-            # 用户字体目录
-            Path.home() / "AppData/Local/Microsoft/Windows/Fonts/LetterGothicStd.otf",
-            Path.home() / "AppData/Local/Microsoft/Windows/Fonts/LetterGothicStd-Bold.otf",
-            # 系统字体目录
-            Path("C:/Windows/Fonts/LetterGothicStd.otf"),
-            Path("C:/Windows/Fonts/LetterGothicStd-Bold.otf"),
-            # 项目本地字体目录
-            Path(__file__).parent.parent / "fonts/LetterGothicStd.otf",
-        ]
-        
-        # 查找可用的字体文件
-        regular_font = None
-        bold_font = None
-        for p in font_paths:
-            if p.exists():
-                if "Bold" in p.name or "bold" in p.name:
-                    bold_font = bold_font or str(p)
-                else:
-                    regular_font = regular_font or str(p)
-        
-        if not regular_font:
-            raise FileNotFoundError("未找到 LetterGothicStd 字体文件")
-        
-        # 如果没有粗体，使用常规字体代替
-        bold_font = bold_font or regular_font
-        
-        if 14 in sizes:
-            fonts["lg"] = ImageFont.truetype(regular_font, 14)
-            fonts["lg_bold"] = ImageFont.truetype(bold_font, 14)
-        if 12 in sizes:
-            fonts["md"] = ImageFont.truetype(regular_font, 12)
-            fonts["md_bold"] = ImageFont.truetype(bold_font, 12)
-        if 11 in sizes:
-            fonts["sm"] = ImageFont.truetype(regular_font, 11)
-            fonts["sm_bold"] = ImageFont.truetype(bold_font, 11)
-        if 10 in sizes:
-            fonts["xs"] = ImageFont.truetype(regular_font, 10)
-        
-        _courier_cache[cache_key] = fonts
-        return fonts
-    except Exception as e:
-        raise RuntimeError(f"无法加载 Letter Gothic 字体文件: {e}")
+    # Letter Gothic Std 字体路径（按优先级排序）
+    font_paths = [
+        # 用户字体目录
+        Path.home() / "AppData/Local/Microsoft/Windows/Fonts/LetterGothicStd.otf",
+        Path.home() / "AppData/Local/Microsoft/Windows/Fonts/LetterGothicStd-Bold.otf",
+        # 系统字体目录
+        Path("C:/Windows/Fonts/LetterGothicStd.otf"),
+        Path("C:/Windows/Fonts/LetterGothicStd-Bold.otf"),
+        # 项目本地字体目录
+        Path(__file__).parent.parent / "fonts/LetterGothicStd.otf",
+    ]
+    
+    # 查找可用的字体文件
+    regular_font = bold_font = None
+    for p in font_paths:
+        if p.exists():
+            if "Bold" in p.name:
+                bold_font = bold_font or str(p)
+            else:
+                regular_font = regular_font or str(p)
+    
+    if not regular_font:
+        raise RuntimeError("未找到 LetterGothicStd 字体文件")
+    
+    # 如果没有粗体，使用常规字体代替
+    bold_font = bold_font or regular_font
+    
+    fonts = {}
+    size_mapping = {14: "lg", 12: "md", 11: "sm", 10: "xs"}
+    for size, key in size_mapping.items():
+        if size in sizes:
+            fonts[key] = ImageFont.truetype(regular_font, size)
+            fonts[f"{key}_bold"] = ImageFont.truetype(bold_font, size)
+    
+    _letter_gothic_cache[cache_key] = fonts
+    return fonts
+
+
+# 保持向后兼容的别名
+load_courier_fonts = load_letter_gothic_fonts
 
 
 def image_to_format(
