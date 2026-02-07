@@ -56,7 +56,7 @@ def generate_newrelic_headers() -> dict:
 def _extract_chrome_version(ua: str) -> str:
     """从 User-Agent 中提取 Chrome 版本号"""
     match = re.search(r"Chrome/(\d+)\.", ua)
-    return match.group(1) if match else "131"
+    return match.group(1) if match else "144"
 
 
 def _get_platform_for_ua(ua: str) -> tuple:
@@ -69,7 +69,7 @@ def _get_platform_for_ua(ua: str) -> tuple:
     chrome_version = _extract_chrome_version(ua)
     sec_ch_ua = CHROME_VERSION_SEC_CH_UA.get(
         chrome_version,
-        CHROME_VERSION_SEC_CH_UA["131"]  # 默认使用 131
+        CHROME_VERSION_SEC_CH_UA["144"]  # 默认使用 144
     )
 
     # 根据 UA 内容匹配平台
@@ -89,15 +89,28 @@ def get_headers() -> dict:
     关键改进：
     - User-Agent 与 sec-ch-ua-platform 保持一致
     - sec-ch-ua 版本与 User-Agent 中的 Chrome 版本匹配
+    - 添加高熵 Client Hints (sec-ch-ua-full-version-list 等)
     """
     # 使用与 TLS 指纹版本匹配的 User-Agent
     ua = get_matched_ua_for_impersonate()
 
     # 根据 UA 确定性选择匹配的平台（而非随机）
     platform_name, sec_ch_ua_platform, sec_ch_ua = _get_platform_for_ua(ua)
+    
+    # 提取 Chrome 版本用于高熵 headers
+    chrome_version = _extract_chrome_version(ua)
 
     language = random.choice(LANGUAGES)
     nr_headers = generate_newrelic_headers()
+    
+    # 生成高熵 Client Hints (sec-ch-ua-full-version-list)
+    # 真实 Chrome 浏览器会发送这些 headers
+    full_version = f"{chrome_version}.0.6778.85"  # Chrome 完整版本格式
+    sec_ch_ua_full_version_list = (
+        f'"Chromium";v="{full_version}", '
+        f'"Google Chrome";v="{full_version}", '
+        f'"Not A(Brand";v="24.0.0.0"'
+    )
 
     # 请求头（像真实浏览器一样正确排序）
     return {
@@ -109,6 +122,10 @@ def get_headers() -> dict:
         "sec-ch-ua": sec_ch_ua,
         "sec-ch-ua-mobile": "?0",
         "sec-ch-ua-platform": sec_ch_ua_platform,
+        # 高熵 Client Hints（SheerID 可能检测这些）
+        "sec-ch-ua-full-version-list": sec_ch_ua_full_version_list,
+        "sec-ch-ua-bitness": '"64"',
+        "sec-ch-ua-arch": '"x86"' if "Windows" in platform_name or "Linux" in platform_name else '"arm"',
         "sec-fetch-dest": "empty",
         "sec-fetch-mode": "cors",
         "sec-fetch-site": "same-origin",

@@ -105,3 +105,53 @@ Optimized for Google One (Gemini Advanced) verification:
 ### 3. Success Factors
 -   **Age Targeting**: 18-24 demographic.
 -   **Clean Images**: Optimized for OCR.
+
+---
+
+## 🔐 统一设备档案 (DeviceProfile)
+
+### 为什么需要统一设备档案？
+
+SheerID 等反欺诈系统会检测**指纹属性之间的逻辑矛盾**。如果各指纹组件独立生成，可能出现：
+
+| 矛盾情况 | 检测风险 |
+|----------|----------|
+| GPU 声称是 RTX 4090，但 WebGL max_texture_size 只有 8192 | 🚨 高 |
+| 操作系统是 Windows，但字体列表包含 macOS 专有字体 | 🚨 高 |
+| 声称 16 核 CPU，但 deviceMemory 只有 4GB | ⚠️ 中 |
+| 时区是美国东部，但语言是 zh-CN | ⚠️ 中 |
+
+### DeviceProfile 如何解决？
+
+`DeviceProfile` 作为统一的设备配置中心，确保所有指纹组件使用**同一套逻辑一致的设备参数**：
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    DeviceProfile (统一档案)                   │
+│  ┌─────────────┐ ┌─────────────┐ ┌─────────────┐            │
+│  │ os_type     │ │ gpu         │ │ cpu_cores   │            │
+│  │ platform    │ │ renderer    │ │ device_memory│           │
+│  │ screen_w/h  │ │ max_texture │ │ timezone    │            │
+│  └──────┬──────┘ └──────┬──────┘ └──────┬──────┘            │
+└─────────┼───────────────┼───────────────┼───────────────────┘
+          │               │               │
+          ▼               ▼               ▼
+    ┌──────────┐   ┌──────────┐   ┌──────────┐
+    │ Canvas   │   │ WebGL    │   │Navigator │
+    │ 指纹      │   │ 指纹      │   │ 指纹      │
+    └──────────┘   └──────────┘   └──────────┘
+          │               │               │
+          └───────────────┼───────────────┘
+                          ▼
+                  🔐 一致的 deviceFingerprintHash
+```
+
+### 关键特性
+
+| 特性 | 说明 |
+|------|------|
+| **GPU 参数精确匹配** | RTX 4090 对应 max_texture_size=32768，Intel UHD 对应 16384 |
+| **操作系统一致性** | Windows 使用 Windows 字体，macOS 使用 macOS 字体 |
+| **美国地区优化** | 自动选择美国时区 (EST/CST/MST/PST) 和英语语言 |
+| **确定性生成** | 使用 verificationId 作为种子，同一会话中配置保持一致 |
+

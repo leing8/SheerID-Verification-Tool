@@ -4,6 +4,7 @@
 
 模块结构：
 - base: 基础工具函数（种子随机数、哈希生成）
+- device_profile: 统一设备档案（确保配置一致性）
 - canvas: Canvas 渲染指纹
 - webgl: WebGL GPU 指纹
 - audio: AudioContext 音频指纹
@@ -11,6 +12,7 @@
 """
 
 import hashlib
+from typing import Optional
 
 from .audio import get_audio_fingerprint
 from .base import (
@@ -27,109 +29,112 @@ from .browser import (
     get_timezone_fingerprint,
 )
 from .canvas import get_canvas_fingerprint
+from .device_profile import (
+    DeviceProfile,
+    GPUProfile,
+    GPU_PROFILES,
+    DEVICE_TEMPLATES,
+    US_TIMEZONES,
+    US_LANGUAGES,
+    generate_device_profile,
+)
 from .webgl import get_webgl_fingerprint
-from ..config import RESOLUTIONS, TIMEZONES, LANGUAGES, PLATFORMS
+
+
+def _compute_fingerprint_hash(
+    seed: str,
+    device: DeviceProfile,
+    canvas_hash: str,
+    webgl_hash: str,
+    audio_hash: str,
+) -> str:
+    """
+    计算指纹哈希（内部函数，避免重复代码）
+    """
+    components = [
+        seed,
+        f"{device.screen_width}x{device.screen_height}",
+        str(device.timezone_offset),
+        device.language,
+        device.platform,
+        device.gpu.vendor,
+        str(device.cpu_cores),
+        str(device.device_memory),
+        str(device.max_touch_points),
+        generate_session_id(seed, "_session"),
+        canvas_hash,
+        webgl_hash,
+        audio_hash,
+    ]
+    return hashlib.sha256("|".join(components).encode()).hexdigest()[:32]
 
 
 def get_fingerprint(seed: str) -> str:
     """
     生成浏览器指纹哈希
     
-    整合所有指纹组件（包括 Canvas、WebGL、Audio 渲染结果）生成最终哈希
-    
     参数:
         seed: verificationId（必须），确保同一验证会话中指纹一致
     """
-    rng = get_seeded_random(seed)
+    device = generate_device_profile(seed, prefer_us=True)
+    
+    canvas_data = get_canvas_fingerprint(seed, device)
+    webgl_data = get_webgl_fingerprint(seed, device)
+    audio_data = get_audio_fingerprint(seed, device)
 
-    # 获取渲染指纹的哈希值
-    canvas_data = get_canvas_fingerprint(seed)
-    webgl_data = get_webgl_fingerprint(seed)
-    audio_data = get_audio_fingerprint(seed)
-
-    components = [
-        seed,
-        str(rng.random()),
-        rng.choice(RESOLUTIONS),
-        str(rng.choice(TIMEZONES)),
-        rng.choice(LANGUAGES).split(",")[0],
-        rng.choice(PLATFORMS),
-        rng.choice(["Google Inc.", "Apple Computer, Inc.", ""]),
-        str(rng.randint(2, 16)),  # CPU cores
-        str(rng.randint(4, 32)),  # Device memory
-        str(rng.randint(0, 1)),  # Touch support
-        generate_session_id(seed, "_session"),
-        # 整合渲染指纹哈希
-        canvas_data["hash"],
-        webgl_data["hash"],
-        audio_data["hash"],
-    ]
-    return hashlib.sha256("|".join(components).encode()).hexdigest()[:32]
+    return _compute_fingerprint_hash(
+        seed, device,
+        canvas_data["hash"], webgl_data["hash"], audio_data["hash"]
+    )
 
 
-def get_full_fingerprint(seed: str, os_type: str = None) -> dict:
+def get_full_fingerprint(seed: str, os_type: Optional[str] = None) -> dict:
     """
     生成完整的浏览器指纹
     
     参数:
-        seed: verificationId（必须），确保同一验证会话中所有指纹一致
-        os_type: 操作系统类型，如为 None 则随机选择
+        seed: verificationId（必须）
+        os_type: 操作系统类型，如为 None 则由 DeviceProfile 随机选择
     """
-    rng = get_seeded_random(seed)
+    device = generate_device_profile(seed, prefer_us=True)
+    
+    # 如果指定了不同的操作系统类型，重新生成
+    if os_type and os_type != device.os_type:
+        device = generate_device_profile(f"{seed}_{os_type}", prefer_us=True)
 
-    # 确定操作系统类型
-    if os_type is None:
-        os_type = rng.choice(["windows", "macos", "linux"])
+    canvas_data = get_canvas_fingerprint(seed, device)
+    webgl_data = get_webgl_fingerprint(seed, device)
+    audio_data = get_audio_fingerprint(seed, device)
 
-    # 获取渲染指纹（仅调用一次，用于 hash 计算和返回）
-    canvas_data = get_canvas_fingerprint(seed)
-    webgl_data = get_webgl_fingerprint(seed)
-    audio_data = get_audio_fingerprint(seed)
-
-    # 预计算共享值，避免重复 rng 调用
-    language = rng.choice(LANGUAGES).split(",")[0]
-    platform = rng.choice(PLATFORMS)
-    cpu_cores = rng.randint(2, 16)
-    memory = rng.randint(4, 32)
-    touch_support = rng.choice([True, False])
-
-    # 直接计算 hash，避免重复调用 get_fingerprint()
-    components = [
-        seed,
-        str(rng.random()),
-        rng.choice(RESOLUTIONS),
-        str(rng.choice(TIMEZONES)),
-        language,
-        platform,
-        rng.choice(["Google Inc.", "Apple Computer, Inc.", ""]),
-        str(cpu_cores),
-        str(memory),
-        str(1 if touch_support else 0),
-        generate_session_id(seed, "_session"),
-        canvas_data["hash"],
-        webgl_data["hash"],
-        audio_data["hash"],
-    ]
-    fingerprint_hash = hashlib.sha256("|".join(components).encode()).hexdigest()[:32]
+    fingerprint_hash = _compute_fingerprint_hash(
+        seed, device,
+        canvas_data["hash"], webgl_data["hash"], audio_data["hash"]
+    )
 
     return {
         "hash": fingerprint_hash,
+        # 渲染指纹
         "canvas": canvas_data,
         "webgl": webgl_data,
         "audio": audio_data,
-        "fonts": get_fonts_fingerprint(seed, os_type),
+        # 浏览器指纹
+        "fonts": get_fonts_fingerprint(seed, device.os_type, device),
         "plugins": get_plugins_fingerprint(seed),
-        "webrtc": get_webrtc_fingerprint(seed),
-        "navigator": get_navigator_fingerprint(seed, os_type),
-        "screen": get_screen_fingerprint(seed),
-        "timezone": get_timezone_fingerprint(seed),
-        "language": language,
-        "platform": platform,
-        "cpuCores": cpu_cores,
-        "memory": memory,
-        "touchSupport": touch_support,
+        "webrtc": get_webrtc_fingerprint(seed, device),
+        "navigator": get_navigator_fingerprint(seed, device.os_type, device),
+        "screen": get_screen_fingerprint(seed, device),
+        "timezone": get_timezone_fingerprint(seed, device),
+        # 设备档案属性
+        "language": device.language,
+        "languages": device.languages,
+        "platform": device.platform,
+        "cpuCores": device.cpu_cores,
+        "memory": device.device_memory,
+        "touchSupport": device.max_touch_points > 0,
         "sessionId": generate_session_id(seed, "_full_session"),
-        "osType": os_type,
+        "osType": device.os_type,
+        "gpuVendor": device.gpu.vendor,
+        "gpuRenderer": device.gpu.renderer,
     }
 
 
@@ -138,6 +143,14 @@ __all__ = [
     "get_seeded_random",
     "generate_session_id",
     "generate_deterministic_hash",
+    # 设备档案
+    "DeviceProfile",
+    "GPUProfile",
+    "GPU_PROFILES",
+    "DEVICE_TEMPLATES",
+    "US_TIMEZONES",
+    "US_LANGUAGES",
+    "generate_device_profile",
     # 渲染指纹
     "get_fingerprint",
     "get_canvas_fingerprint",

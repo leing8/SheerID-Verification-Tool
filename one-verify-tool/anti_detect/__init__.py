@@ -56,6 +56,11 @@ from .fingerprint import (
     get_screen_fingerprint,
     get_timezone_fingerprint,
     get_full_fingerprint,
+    # 新增：设备档案模块
+    DeviceProfile,
+    GPUProfile,
+    GPU_PROFILES,
+    generate_device_profile,
 )
 # 欺诈处理
 from .fraud import (
@@ -117,6 +122,11 @@ __all__ = [
     "get_screen_fingerprint",
     "get_timezone_fingerprint",
     "get_full_fingerprint",
+    # 设备档案
+    "DeviceProfile",
+    "GPUProfile",
+    "GPU_PROFILES",
+    "generate_device_profile",
     # 请求头
     "generate_newrelic_headers",
     "get_headers",

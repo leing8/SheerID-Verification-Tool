@@ -1,14 +1,17 @@
 """
 Audio 指纹生成模块
 模拟 AudioContext 音频处理
+使用 DeviceProfile 确保采样率一致
 """
 
 import hashlib
+from typing import Optional
 
 from .base import get_seeded_random
+from .device_profile import DeviceProfile
 
 
-def get_audio_fingerprint(seed: str) -> dict:
+def get_audio_fingerprint(seed: str, device_profile: Optional[DeviceProfile] = None) -> dict:
     """
     生成 AudioContext 指纹（模拟真实音频处理）
     
@@ -20,14 +23,18 @@ def get_audio_fingerprint(seed: str) -> dict:
     
     参数:
         seed: verificationId（必须）
+        device_profile: 统一设备档案
     
     返回:
         包含音频处理参数和结果的字典
     """
     rng = get_seeded_random(seed)
 
-    # AudioContext 基础参数
-    sample_rate = rng.choice([44100, 48000])
+    # AudioContext 基础参数（使用设备档案配置）
+    if device_profile is not None:
+        sample_rate = device_profile.audio_sample_rate
+    else:
+        sample_rate = rng.choice([44100, 48000])
 
     # OscillatorNode 参数
     oscillator = {

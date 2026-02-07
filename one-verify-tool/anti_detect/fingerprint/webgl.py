@@ -1,58 +1,41 @@
 """
 WebGL 指纹生成模块
-模拟真实 GPU 渲染参数
+使用 DeviceProfile 确保 GPU 参数精确匹配
 """
 
+from typing import Optional
+
 from .base import get_seeded_random, generate_deterministic_hash
-from ..config import WEBGL_VENDORS, WEBGL_RENDERERS
+from .device_profile import DeviceProfile
 
 
-def get_webgl_fingerprint(seed: str) -> dict:
+def get_webgl_fingerprint(seed: str, device_profile: Optional[DeviceProfile] = None) -> dict:
     """
-    生成 WebGL 指纹（模拟真实 GPU 渲染参数）
-    
-    真实浏览器中，WebGL 指纹包含：
-    1. GPU 厂商和渲染器信息
-    2. 支持的扩展列表
-    3. 各种参数的最大值（受 GPU 限制）
-    4. 着色器精度信息
+    生成 WebGL 指纹（使用真实 GPU 参数）
     
     参数:
         seed: verificationId（必须）
+        device_profile: 统一设备档案，如果提供则使用其 GPU 配置
     
     返回:
         包含完整 WebGL 参数的字典
     """
     rng = get_seeded_random(seed)
-
+    
+    # 如果提供了设备档案，使用其 GPU 配置
+    if device_profile is not None:
+        gpu = device_profile.gpu
+    else:
+        # 向后兼容：没有设备档案时使用默认逻辑
+        from .device_profile import GPU_PROFILES
+        gpu_keys = list(GPU_PROFILES.keys())
+        gpu = GPU_PROFILES[rng.choice(gpu_keys)]
+    
     # GPU 信息（WEBGL_debug_renderer_info 扩展）
-    vendor = rng.choice(WEBGL_VENDORS)
-    renderer = rng.choice(WEBGL_RENDERERS)
-
-    # 根据 GPU 类型选择合适的参数范围
-    is_nvidia = "NVIDIA" in renderer
-    is_intel = "Intel" in renderer
-    is_apple = "Apple" in renderer
-
-    # 模拟 GPU 能力参数（不同 GPU 有不同的硬件限制）
-    if is_nvidia:
-        max_texture_size = rng.choice([16384, 32768])
-        max_viewport_dims = [32768, 32768]
-        max_renderbuffer_size = 16384
-    elif is_intel:
-        max_texture_size = rng.choice([8192, 16384])
-        max_viewport_dims = [16384, 16384]
-        max_renderbuffer_size = 8192
-    elif is_apple:
-        max_texture_size = 16384
-        max_viewport_dims = [16384, 16384]
-        max_renderbuffer_size = 16384
-    else:  # AMD 或其他
-        max_texture_size = rng.choice([8192, 16384])
-        max_viewport_dims = [16384, 16384]
-        max_renderbuffer_size = rng.choice([8192, 16384])
-
-    # 常见 WebGL 扩展
+    vendor = gpu.vendor
+    renderer = gpu.renderer
+    
+    # 常见 WebGL 扩展（根据 GPU 类型调整）
     all_extensions = [
         "ANGLE_instanced_arrays",
         "EXT_blend_minmax",
@@ -82,18 +65,28 @@ def get_webgl_fingerprint(seed: str) -> dict:
         "WEBGL_draw_buffers",
         "WEBGL_lose_context",
     ]
-    # 随机选择 15-25 个扩展
-    num_extensions = rng.randint(15, min(25, len(all_extensions)))
-    extensions = rng.sample(all_extensions, num_extensions)
-
-    # 着色器精度（不同 GPU 精度不同）
+    
+    # 根据 GPU 能力决定扩展数量
+    if gpu.max_texture_size >= 32768:
+        # 高端 GPU 支持更多扩展
+        num_extensions = rng.randint(22, min(27, len(all_extensions)))
+    elif gpu.max_texture_size >= 16384:
+        # 中端 GPU
+        num_extensions = rng.randint(18, 24)
+    else:
+        # 入门级 GPU
+        num_extensions = rng.randint(15, 20)
+    
+    extensions = rng.sample(all_extensions, min(num_extensions, len(all_extensions)))
+    
+    # 着色器精度（使用 GPU 配置）
     shader_precision = {
-        "highFloatPrecision": rng.choice([23, 24, 127]),
-        "highIntPrecision": rng.choice([16, 24, 127]),
+        "highFloatPrecision": gpu.high_float_precision,
+        "highIntPrecision": gpu.high_int_precision,
         "mediumFloatPrecision": rng.choice([23, 24]),
-        "lowFloatPrecision": rng.choice([8, 23, 24]),
+        "lowFloatPrecision": rng.choice([8, 23]),
     }
-
+    
     return {
         # GPU 信息
         "vendor": vendor,
@@ -105,22 +98,22 @@ def get_webgl_fingerprint(seed: str) -> dict:
         "version": "WebGL 1.0 (OpenGL ES 2.0 Chromium)",
         "shadingLanguageVersion": "WebGL GLSL ES 1.0 (OpenGL ES GLSL ES 1.0 Chromium)",
 
-        # GPU 能力参数
-        "maxTextureSize": max_texture_size,
-        "maxViewportDims": max_viewport_dims,
-        "maxRenderbufferSize": max_renderbuffer_size,
-        "maxCubeMapTextureSize": max_texture_size // 2,
-        "maxTextureImageUnits": rng.choice([16, 32]),
-        "maxVertexTextureImageUnits": rng.choice([4, 8, 16]),
-        "maxCombinedTextureImageUnits": rng.choice([32, 48, 80]),
-        "maxVertexAttribs": rng.choice([16, 32]),
-        "maxVertexUniformVectors": rng.choice([256, 1024, 4096]),
-        "maxFragmentUniformVectors": rng.choice([256, 1024, 4096]),
-        "maxVaryingVectors": rng.choice([15, 16, 30, 31]),
+        # GPU 能力参数（使用精确的 GPU 配置）
+        "maxTextureSize": gpu.max_texture_size,
+        "maxViewportDims": gpu.max_viewport_dims,
+        "maxRenderbufferSize": gpu.max_renderbuffer_size,
+        "maxCubeMapTextureSize": gpu.max_cube_map_texture_size,
+        "maxTextureImageUnits": gpu.max_texture_image_units,
+        "maxVertexTextureImageUnits": gpu.max_vertex_texture_image_units,
+        "maxCombinedTextureImageUnits": gpu.max_combined_texture_image_units,
+        "maxVertexAttribs": gpu.max_vertex_attribs,
+        "maxVertexUniformVectors": gpu.max_vertex_uniform_vectors,
+        "maxFragmentUniformVectors": gpu.max_fragment_uniform_vectors,
+        "maxVaryingVectors": gpu.max_varying_vectors,
 
         # 抗锯齿
-        "antialias": rng.choice([True, False]),
-        "maxSamples": rng.choice([4, 8, 16]),
+        "antialias": True,
+        "maxSamples": gpu.max_samples,
 
         # 扩展
         "extensions": extensions,
