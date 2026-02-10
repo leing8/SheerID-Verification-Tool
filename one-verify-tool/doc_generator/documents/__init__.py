@@ -2,6 +2,10 @@
 文档类型模块导出
 """
 
+from .avatar import (
+    fetch_random_avatar,
+    create_placeholder_avatar,
+)
 from .receipt import (
     create_receipt_image,
     generate_receipt_bytes,
@@ -20,6 +24,9 @@ from .transcript import (
 )
 
 __all__ = [
+    # 头像
+    "fetch_random_avatar",
+    "create_placeholder_avatar",
     # 成绩单
     "create_transcript_image",
     "generate_transcript_bytes",
@@ -34,3 +41,4 @@ __all__ = [
     "generate_receipt_bytes",
     "generate_receipt_items",
 ]
+

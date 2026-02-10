@@ -9,11 +9,12 @@ from datetime import datetime
 from pathlib import Path
 from typing import List
 
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFont
 
 from .base_template import UniversityTemplate
 from ..anti_detection import load_letter_gothic_fonts, image_to_format
 from ..base import get_seeded_random
+from ..documents.avatar import fetch_random_avatar, create_placeholder_avatar
 
 
 class HarvardTemplate(UniversityTemplate):
@@ -27,9 +28,11 @@ class HarvardTemplate(UniversityTemplate):
     """
     
     # 模板文件路径（相对于当前文件）
-    TEMPLATE_PATH = Path(__file__).parent / "harvard-transcript1.png"
+    _TEMPLATES_DIR = Path(__file__).parent
+    TEMPLATE_PATH = _TEMPLATES_DIR / "harvard-transcript1.png"
+    STUDENT_ID_TEMPLATE_PATH = _TEMPLATES_DIR / "harvard-student-id1.png"
     
-    # 模板上的字段坐标
+    # 成绩单模板上的字段坐标
     # 实际模板尺寸: 800x1100 像素
     # 坐标格式: (x, y)，单位为像素
     COORDS = {
@@ -60,6 +63,16 @@ class HarvardTemplate(UniversityTemplate):
             "level": 606,
             "grade": 685,
         },
+    }
+    
+    # 学生证模板上的字段坐标
+    STUDENT_ID_COORDS = {
+        "photo": (52, 40, 244, 240),       # 头像区域 (x1, y1, x2, y2) - 边框内部
+        "name": (25, 253),                  # 姓名位置
+        "id_number": (25, 284),             # 学生ID位置
+        "sp_label": (205, 284),             # SP 标识位置
+        "valid_thru": (423, 284),           # 过期日期位置 (VALID THRU 右侧)
+        "barcode": (25, 316, 240, 366),     # 条形码扰乱区域
     }
     
     # 课程行高
@@ -167,6 +180,16 @@ class HarvardTemplate(UniversityTemplate):
         terms = ["Spring Term", "Summer Term", "Fall Term"]
         return f"{rng.choice(terms)} {year}"
     
+    @staticmethod
+    def _load_student_id_font(size: int = 28) -> ImageFont.FreeTypeFont:
+        """加载 Times New Roman Bold 字体"""
+        for font_name in ("timesbd.ttf", "Times New Roman Bold.ttf", "TIMESBD.TTF"):
+            try:
+                return ImageFont.truetype(font_name, size)
+            except OSError:
+                continue
+        return ImageFont.load_default()
+    
     def generate_transcript(
         self,
         first: str,
@@ -204,36 +227,35 @@ class HarvardTemplate(UniversityTemplate):
         text_color = (30, 30, 30)
         
         # 紧凑字符间距绘制函数（模拟打字机紧凑效果）
-        def draw_tight_text(pos, text, font, spacing=-1):
-            """绘制紧凑间距的文本"""
+        def draw_text(pos, text, font, spacing=-1):
+            """绘制带间距的文本"""
             x, y = pos
             for char in text:
                 draw.text((x, y), char, fill=text_color, font=font)
                 bbox = font.getbbox(char)
-                char_width = bbox[2] - bbox[0] if bbox else 6
-                x += char_width + spacing
+                x += (bbox[2] - bbox[0] if bbox else 6) + spacing
         
         # 1. 填充 ISSUED TO 下方的地址
         address_lines = self._generate_us_address(first, last, rng)
         y = self.COORDS["issued_to_line1"][1]
         for line in address_lines:
-            draw_tight_text((self.COORDS["issued_to_line1"][0], y), line, fonts["sm_bold"])
+            draw_text((self.COORDS["issued_to_line1"][0], y), line, fonts["sm_bold"])
             y += 15
         
         # 2. 填充 Name
-        draw_tight_text(self.COORDS["name"], f"{first} {last}", fonts["sm_bold"])
+        draw_text(self.COORDS["name"], f"{first} {last}", fonts["sm_bold"])
         
         # 3. 填充 ID
         student_id = self._generate_student_id(rng)
-        draw_tight_text(self.COORDS["student_id"], student_id, fonts["sm_bold"])
+        draw_text(self.COORDS["student_id"], student_id, fonts["sm_bold"])
         
         # 4. 填充 Printed 日期
         printed_date = time.strftime("%B %d, %Y")  # 如 "February 07, 2026"
-        draw_tight_text(self.COORDS["printed"], printed_date, fonts["sm_bold"])
+        draw_text(self.COORDS["printed"], printed_date, fonts["sm_bold"])
         
         # 5. 填充学期标签
         semester = self._get_current_semester(rng)
-        draw_tight_text(self.COORDS["semester_label"], semester, fonts["sm_bold"])
+        draw_text(self.COORDS["semester_label"], semester, fonts["sm_bold"])
         
         # 6. 填充课程列表
         courses = self._generate_courses(rng)
@@ -241,12 +263,12 @@ class HarvardTemplate(UniversityTemplate):
         cols = self.COORDS["course_cols"]
         
         for course_code, title, credits, earned, level, grade in courses:
-            draw_tight_text((cols["course"], y), course_code, fonts["sm_bold"])
-            draw_tight_text((cols["title"], y), title, fonts["sm_bold"])
-            draw_tight_text((cols["credits"], y), credits, fonts["sm_bold"])
-            draw_tight_text((cols["earned"], y), earned, fonts["sm_bold"])
-            draw_tight_text((cols["level"], y), level, fonts["sm_bold"])
-            draw_tight_text((cols["grade"], y), grade, fonts["sm_bold"])
+            draw_text((cols["course"], y), course_code, fonts["sm_bold"])
+            draw_text((cols["title"], y), title, fonts["sm_bold"])
+            draw_text((cols["credits"], y), credits, fonts["sm_bold"])
+            draw_text((cols["earned"], y), earned, fonts["sm_bold"])
+            draw_text((cols["level"], y), level, fonts["sm_bold"])
+            draw_text((cols["grade"], y), grade, fonts["sm_bold"])
             y += self.COURSE_LINE_HEIGHT
         
         # 转换为指定格式并返回
@@ -257,17 +279,74 @@ class HarvardTemplate(UniversityTemplate):
         first: str,
         last: str,
         school: str,
-        seed: str
+        seed: str,
+        output_format: str = "png"
     ) -> bytes:
         """
-        生成学生证（Harvard 暂用通用模板）
+        生成 Harvard 学生证
         
-        TODO: 实现 Harvard 专用学生证模板
+        基于 harvard-student-id1.png 模板，填充：
+        - 真人头像（pravatar.cc）
+        - 学生姓名（大写）
+        - 学生ID + SP 标识
+        - 过期日期
+        - 条形码扰乱
+        
+        参数:
+            first: 名
+            last: 姓
+            school: 学校名称（忽略，固定为 Harvard）
+            seed: 随机种子（verificationId）
+            output_format: 输出格式 ("png", "jpg", "pdf")
+        
+        返回:
+            指定格式的图像字节数据
         """
-        # 回退到通用模板
-        from .us_generic import default_us_template
-        return default_us_template.generate_student_id(first, last, school, seed)
+        rng = get_seeded_random(seed)
+        
+        if not self.STUDENT_ID_TEMPLATE_PATH.exists():
+            raise FileNotFoundError(f"Harvard 学生证模板不存在: {self.STUDENT_ID_TEMPLATE_PATH}")
+        
+        img = Image.open(self.STUDENT_ID_TEMPLATE_PATH).convert("RGB")
+        draw = ImageDraw.Draw(img)
+        coords = self.STUDENT_ID_COORDS
+        
+        # 加载字体（Times New Roman Bold）
+        font = self._load_student_id_font(28)
+        text_color = (0, 0, 0)
+        
+        # 绘制文本的辅助函数
+        def draw_text(pos, text):
+            x, y = pos
+            for char in text:
+                draw.text((x, y), char, fill=text_color, font=font)
+                bbox = font.getbbox(char)
+                x += (bbox[2] - bbox[0]) if bbox else 10
+        
+        # 1. 添加头像
+        photo = coords["photo"]
+        photo_size = (photo[2] - photo[0], photo[3] - photo[1])
+        avatar = fetch_random_avatar(seed, size=photo_size) or create_placeholder_avatar(size=photo_size)
+        img.paste(avatar, (photo[0], photo[1]))
+        
+        # 2. 填充文本字段
+        draw_text(coords["name"], f"{first} {last}".upper())
+        student_id = self._generate_student_id(rng)
+        draw_text(coords["id_number"], f"{student_id} 0")
+        draw_text(coords["sp_label"], "SP")
+        valid_year = datetime.now().year if datetime.now().month <= 5 else datetime.now().year + 1
+        draw_text(coords["valid_thru"], f"05/31/{valid_year}")
+        
+        # 3. 条形码扰乱：在原有条形码上叠加几条随机粗细的黑线
+        bx1, by1, bx2, by2 = coords["barcode"]
+        for _ in range(rng.randint(3, 6)):
+            x = rng.randint(bx1 + 5, bx2 - 5)
+            draw.rectangle([(x, by1 + 3), (x + rng.randint(1, 4), by2 - 3)], fill=(0, 0, 0))
+        
+        # 转换为指定格式并返回（含反检测处理）
+        return image_to_format(img, rng, output_format=output_format)
 
 
 # 默认 Harvard 模板实例
 harvard_template = HarvardTemplate()
+
