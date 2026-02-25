@@ -1,26 +1,22 @@
 """
-Anti-Detection Module for SheerID Verification Tools
-Shared module for better anti-fraud bypass
+SheerID 验证工具 - 反检测模块
 
-Features:
-- Random User-Agent rotation (Chrome, Firefox, Edge, Safari)
-- Browser-like headers with proper ordering
-- Random fingerprint generation
-- Request delay randomization
-- TLS fingerprint spoofing with Chrome impersonation (curl_cffi)
-- NewRelic tracking headers (required for SheerID)
-- Canvas/WebGL fingerprint simulation
-- Proxy validation and formatting
+功能:
+- 随机 User-Agent 轮换 (Chrome, Firefox, Edge, Safari)
+- 浏览器级请求头排序
+- 浏览器指纹生成 (Canvas/WebGL/Audio)
+- 人类行为模拟延迟
+- TLS 指纹伪装 (curl_cffi Chrome 模拟)
+- NewRelic 追踪头 (SheerID 必需)
+- 代理验证与格式化
 
-Usage:
+用法:
     from anti_detect import get_headers, get_fingerprint, random_delay, create_session
-    from anti_detect import generate_newrelic_headers  # For SheerID API calls
-    from anti_detect import make_request  # High-level request with impersonation
+    from anti_detect import generate_newrelic_headers
+    from anti_detect import make_request
 
-CRITICAL: For best results, install curl_cffi:
+重要: 必须安装 curl_cffi 以伪装 TLS 指纹:
     pip install curl_cffi
-
-Without curl_cffi, SheerID can detect Python's TLS fingerprint and reject requests.
 """
 
 import base64
@@ -30,9 +26,8 @@ import random
 import time
 import uuid
 
-# ============ CHROME IMPERSONATION VERSIONS ============
-# These are the Chrome versions that curl_cffi can impersonate
-# Updated Jan 2026 - use latest stable versions
+# ============ Chrome 模拟版本 ============
+# curl_cffi 可模拟的 Chrome 版本 (2026年1月更新)
 CHROME_VERSIONS = [
     "chrome131",  # Chrome 131 (stable)
     "chrome130",  # Chrome 130
@@ -49,21 +44,21 @@ CHROME_VERSIONS = [
     "chrome99",  # Chrome 99
 ]
 
-# Multiple browser types for rotation (curl_cffi supports these)
+# 多浏览器轮换选项 (curl_cffi 支持)
 IMPERSONATE_OPTIONS = {
     "chrome": ["chrome131", "chrome130", "chrome124", "chrome120"],
     "edge": ["edge131", "edge127", "edge101"],
     "safari": ["safari18", "safari17_2_ios", "safari17_0"],
 }
 
-# Default impersonation - use latest stable
+# 默认模拟版本 - 使用最新稳定版
 DEFAULT_IMPERSONATE = "chrome131"
 
-# ============ USER AGENTS ============
-# Real browser User-Agents (updated Jan 2026)
-# IMPORTANT: These must match the Chrome version we're impersonating
+# ============ User-Agent 列表 ============
+# 真实浏览器 User-Agent (2026年1月更新)
+# 重要: 必须与模拟的 Chrome 版本匹配
 USER_AGENTS_CHROME = [
-    # Chrome 131 Windows (matches chrome131 impersonation)
+    # Chrome 131 Windows (匹配 chrome131 模拟)
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
     # Chrome 131 Mac
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
@@ -73,7 +68,7 @@ USER_AGENTS_CHROME = [
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
 ]
 
-# Legacy list for backwards compatibility
+# 兼容旧版的 User-Agent 列表
 USER_AGENTS = [
     # Chrome Windows
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
@@ -84,11 +79,11 @@ USER_AGENTS = [
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
     # Chrome Linux
     "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-    # Edge Windows (Chromium-based)
+    # Edge Windows (基于 Chromium)
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36 Edg/131.0.0.0",
 ]
 
-# ============ SCREEN RESOLUTIONS ============
+# ============ 屏幕分辨率 ============
 RESOLUTIONS = [
     "1920x1080",
     "1366x768",
@@ -102,10 +97,10 @@ RESOLUTIONS = [
     "1024x768",
 ]
 
-# ============ TIMEZONES ============
+# ============ 时区 ============
 TIMEZONES = [-8, -7, -6, -5, -4, -3, 0, 1, 2, 3, 5.5, 8, 9, 10]
 
-# ============ LANGUAGES ============
+# ============ 语言 ============
 LANGUAGES = [
     "en-US,en;q=0.9",
     "en-US,en;q=0.9,es;q=0.8",
@@ -114,8 +109,8 @@ LANGUAGES = [
     "en-AU,en;q=0.9",
 ]
 
-# ============ PLATFORMS ============
-# Must match User-Agent for consistency
+# ============ 平台信息 ============
+# 必须与 User-Agent 保持一致
 PLATFORMS = [
     (
         "Windows",
@@ -139,7 +134,7 @@ PLATFORMS = [
     ),
 ]
 
-# ============ WEBGL VENDORS ============
+# ============ WebGL 厂商与渲染器 ============
 WEBGL_VENDORS = [
     "Google Inc. (NVIDIA)",
     "Google Inc. (Intel)",
@@ -157,12 +152,12 @@ WEBGL_RENDERERS = [
 
 
 def get_random_user_agent() -> str:
-    """Get a random User-Agent string"""
+    """随机获取一个 User-Agent 字符串"""
     return random.choice(USER_AGENTS)
 
 
 def get_fingerprint() -> str:
-    """Generate realistic browser fingerprint hash"""
+    """生成模拟真实浏览器的指纹哈希"""
     components = [
         str(int(time.time() * 1000)),
         str(random.random()),
@@ -171,23 +166,23 @@ def get_fingerprint() -> str:
         random.choice(LANGUAGES).split(",")[0],
         random.choice(["Win32", "MacIntel", "Linux x86_64"]),
         random.choice(["Google Inc.", "Apple Computer, Inc.", ""]),
-        str(random.randint(2, 16)),  # CPU cores
-        str(random.randint(4, 32)),  # Device memory
-        str(random.randint(0, 1)),  # Touch support
-        str(uuid.uuid4()),  # Session ID
+        str(random.randint(2, 16)),   # CPU 核心数
+        str(random.randint(4, 32)),   # 设备内存(GB)
+        str(random.randint(0, 1)),    # 触屏支持
+        str(uuid.uuid4()),            # 会话ID
     ]
     return hashlib.md5("|".join(components).encode()).hexdigest()
 
 
 def get_canvas_fingerprint() -> str:
-    """Generate a realistic canvas fingerprint hash"""
-    # Simulate canvas toDataURL hash
+    """生成模拟 Canvas 指纹哈希"""
+    # 模拟 canvas toDataURL 哈希
     seed = str(time.time()) + str(random.random())
     return hashlib.sha256(seed.encode()).hexdigest()[:32]
 
 
 def get_webgl_fingerprint() -> dict:
-    """Generate WebGL fingerprint data"""
+    """生成 WebGL 指纹数据"""
     return {
         "vendor": random.choice(WEBGL_VENDORS),
         "renderer": random.choice(WEBGL_RENDERERS),
@@ -196,13 +191,12 @@ def get_webgl_fingerprint() -> dict:
 
 
 def get_audio_fingerprint() -> str:
-    """Generate audio context fingerprint"""
-    # Simulate AudioContext fingerprint
+    """生成 AudioContext 音频指纹"""
     return str(random.uniform(124.0, 124.1))[:15]
 
 
 def get_full_fingerprint() -> dict:
-    """Generate complete browser fingerprint for anti-detection"""
+    """生成完整的浏览器指纹用于反检测"""
     screen = random.choice(RESOLUTIONS)
     width, height = screen.split("x")
 
@@ -228,10 +222,7 @@ def get_full_fingerprint() -> dict:
 
 
 def generate_newrelic_headers() -> dict:
-    """
-    Generate NewRelic tracking headers required by SheerID API
-    These headers help make requests look like they're from real browsers
-    """
+    """生成 SheerID API 所需的 NewRelic 追踪头，模拟真实浏览器请求"""
     trace_id = uuid.uuid4().hex + uuid.uuid4().hex[:8]
     trace_id = trace_id[:32]
     span_id = uuid.uuid4().hex[:16]
@@ -258,17 +249,17 @@ def generate_newrelic_headers() -> dict:
 
 def get_headers(for_sheerid: bool = True, with_auth: str = None) -> dict:
     """
-    Generate browser-like headers with proper ordering
+    生成浏览器级请求头（按真实浏览器顺序排列）
 
     Args:
-        for_sheerid: If True, use SheerID-specific headers
-        with_auth: Bearer token for Authorization header
+        for_sheerid: 是否使用 SheerID 专用请求头
+        with_auth: Bearer 授权令牌
     """
     ua = get_random_user_agent()
     platform = random.choice(PLATFORMS)
     language = random.choice(LANGUAGES)
 
-    # Base headers (proper ordering like real browser)
+    # 基础请求头（按真实浏览器顺序排列）
     headers = {
         "accept": "application/json, text/plain, */*",
         "accept-encoding": "gzip, deflate, br, zstd",
@@ -293,7 +284,7 @@ def get_headers(for_sheerid: bool = True, with_auth: str = None) -> dict:
                 "clientname": "jslib",
                 "origin": "https://services.sheerid.com",
                 "referer": "https://services.sheerid.com/",
-                **nr_headers,  # Include NewRelic tracking headers
+                **nr_headers,  # NewRelic 追踪头
             }
         )
 
@@ -308,79 +299,72 @@ def get_headers(for_sheerid: bool = True, with_auth: str = None) -> dict:
 
 
 def random_delay(min_ms: int = 300, max_ms: int = 1200):
-    """
-    Random delay with gamma distribution to mimic human behavior
-    Gamma distribution is more realistic than uniform random
-    """
+    """使用 Gamma 分布的随机延迟，模拟人类操作行为"""
     try:
         import numpy as np
 
-        # Gamma distribution mimics human reaction times better
+        # Gamma 分布更接近人类真实反应时间
         shape, scale = 2.0, (max_ms - min_ms) / 4000
         delay = min_ms / 1000 + np.random.gamma(shape, scale)
-        delay = min(delay, max_ms / 1000)  # Cap at max
+        delay = min(delay, max_ms / 1000)  # 上限截断
     except ImportError:
-        # Fallback to basic random with slight variation
+        # 回退到基本随机 + 微小随机偏移
         delay = random.randint(min_ms, max_ms) / 1000
-        delay += random.uniform(0, 0.15)  # Add extra randomness
+        delay += random.uniform(0, 0.15)
 
     time.sleep(delay)
 
 
 def get_random_impersonate(browser_type: str = None) -> str:
     """
-    Get random browser impersonation string for variety
+    随机获取浏览器模拟标识
 
     Args:
-        browser_type: 'chrome', 'edge', 'safari' or None for weighted random
-
-    Returns:
-        Impersonation string like 'chrome131'
+        browser_type: 'chrome'/'edge'/'safari'，为 None 则按权重随机选择
     """
     if browser_type and browser_type in IMPERSONATE_OPTIONS:
         return random.choice(IMPERSONATE_OPTIONS[browser_type])
 
-    # Weight towards Chrome (most common, safest)
+    # Chrome 权重最高（最常见、最安全）
     weights = [0.75, 0.15, 0.10]
     browser = random.choices(["chrome", "edge", "safari"], weights=weights)[0]
     return random.choice(IMPERSONATE_OPTIONS[browser])
 
 
 def validate_proxy(proxy: str) -> str:
-    """Validate and format proxy string"""
+    """验证并格式化代理字符串"""
     if not proxy:
         return None
 
     proxy = proxy.strip()
 
-    # Already has scheme
+    # 已包含协议前缀
     if "://" in proxy:
         return proxy
 
     parts = proxy.split(":")
 
-    # host:port format
+    # host:port 格式
     if len(parts) == 2:
         return f"http://{parts[0]}:{parts[1]}"
 
-    # host:port:user:pass format
+    # host:port:user:pass 格式
     elif len(parts) == 4:
         return f"http://{parts[2]}:{parts[3]}@{parts[0]}:{parts[1]}"
 
-    # user:pass@host:port format (already correct, just add scheme)
+    # user:pass@host:port 格式（只需添加协议前缀）
     elif "@" in proxy:
         return f"http://{proxy}"
 
-    print(f"[WARN] Invalid proxy format: {proxy}")
+    print(f"[警告] 无效的代理格式: {proxy}")
     return None
 
 
 def check_proxy_type(proxy: str) -> str:
     """
-    Check if proxy is datacenter or residential
-    Returns: 'residential', 'datacenter', 'unknown'
+    检查代理类型: 住宅代理/数据中心代理/未知
     """
-    # This is a heuristic - actual check would require IP database lookup
+    # 启发式判断 - 精确检查需要 IP 数据库
     datacenter_indicators = [
         "vultr",
         "digitalocean",
@@ -420,8 +404,7 @@ def check_proxy_type(proxy: str) -> str:
 
 def get_proxy_country(proxy: str) -> str:
     """
-    Try to determine proxy country from hostname
-    Returns country code (US, NL, UK, etc.) or 'unknown'
+    从代理主机名推断国家代码，返回 'US'/'NL' 等或 'unknown'
     """
     country_indicators = {
         "us": ["us.", "-us-", ".us.", "america", "united-states"],
@@ -445,14 +428,14 @@ def get_proxy_country(proxy: str) -> str:
 
 def get_matched_proxy(target_country: str, proxies: list) -> str:
     """
-    Get proxy matching target country (for university location matching)
+    获取与目标国家匹配的代理（用于匹配大学所在地）
 
     Args:
-        target_country: Country code (US, NL, UK, etc.)
-        proxies: List of proxy URLs
+        target_country: 国家代码 (US, NL, UK 等)
+        proxies: 代理 URL 列表
 
     Returns:
-        Matched proxy URL or random proxy if no match
+        匹配的代理 URL，无匹配则返回随机代理
     """
     if not proxies:
         return None
@@ -468,7 +451,7 @@ def get_matched_proxy(target_country: str, proxies: list) -> str:
     if matched:
         return random.choice(matched)
 
-    # No match - return random residential if available
+    # 无匹配 - 优先返回住宅代理
     residential = [p for p in proxies if check_proxy_type(p) == "residential"]
     if residential:
         return random.choice(residential)
@@ -478,40 +461,39 @@ def get_matched_proxy(target_country: str, proxies: list) -> str:
 
 def create_session(proxy: str = None, impersonate: str = None):
     """
-    Create HTTP session with best available library
-    Priority: curl_cffi (with impersonation) > cloudscraper > httpx > requests
+    创建 HTTP 会话，按优先级选择最佳可用库
+    优先级: curl_cffi(带模拟) > cloudscraper > httpx > requests
 
-    CRITICAL: curl_cffi with Chrome impersonation is STRONGLY recommended.
-    Without it, SheerID can detect Python's TLS fingerprint (JA3/JA4).
+    重要: 强烈推荐 curl_cffi + Chrome 模拟，
+    否则 SheerID 可检测到 Python 的 TLS 指纹 (JA3/JA4)
 
     Args:
-        proxy: Proxy URL (will be formatted if needed)
-        impersonate: Chrome version to impersonate (e.g., "chrome131")
-                    If None, uses DEFAULT_IMPERSONATE
+        proxy: 代理 URL
+        impersonate: 模拟的 Chrome 版本，默认使用 DEFAULT_IMPERSONATE
 
     Returns:
-        tuple: (session, library_name, impersonate_version)
+        tuple: (session, 库名称, 模拟版本)
     """
-    # Validate and format proxy
+    # 验证并格式化代理
     proxy = validate_proxy(proxy)
     proxies = None
     if proxy:
         proxies = {"http": proxy, "https": proxy, "all://": proxy}
 
-        # Warn if using datacenter proxy
+        # 警告: 数据中心代理风险高
         proxy_type = check_proxy_type(proxy)
         if proxy_type == "datacenter":
-            print("[WARN] ⚠️  Datacenter proxy detected! SheerID may reject requests.")
-            print("[WARN]    Residential proxies are STRONGLY recommended.")
+            print("[警告] ⚠️  检测到数据中心代理! SheerID 可能拒绝请求")
+            print("[警告]    强烈建议使用住宅代理")
 
-    # Determine impersonation version
+    # 确定模拟版本
     imp_version = impersonate or DEFAULT_IMPERSONATE
 
-    # Try curl_cffi first (BEST - TLS fingerprint spoofing)
+    # 优先尝试 curl_cffi (最佳 - TLS 指纹伪装)
     try:
         from curl_cffi import requests as curl_requests
 
-        # Test if impersonation is supported
+        # 检查模拟版本是否支持
         try:
             if proxies:
                 session = curl_requests.Session(
@@ -520,17 +502,15 @@ def create_session(proxy: str = None, impersonate: str = None):
             else:
                 session = curl_requests.Session(impersonate=imp_version)
 
-            print(f"[Anti-Detect] ✅ Using curl_cffi with {imp_version} impersonation")
-            print(f"[Anti-Detect]    TLS fingerprint will match real Chrome browser")
+            print(f"[反检测] ✅ 使用 curl_cffi {imp_version} 模拟")
+            print(f"[反检测]    TLS 指纹将匹配真实 Chrome 浏览器")
             return session, "curl_cffi", imp_version
 
         except Exception as e:
-            # Try without impersonation if version not supported
-            print(
-                f"[WARN] Impersonation '{imp_version}' not supported, trying fallback..."
-            )
+            # 版本不支持时尝试回退版本
+            print(f"[警告] 模拟版本 '{imp_version}' 不支持，尝试回退版本...")
 
-            # Try older versions
+            # 尝试旧版本
             for fallback_ver in ["chrome120", "chrome110", "chrome100"]:
                 try:
                     if proxies:
@@ -539,33 +519,31 @@ def create_session(proxy: str = None, impersonate: str = None):
                         )
                     else:
                         session = curl_requests.Session(impersonate=fallback_ver)
-                    print(
-                        f"[Anti-Detect] ✅ Using curl_cffi with {fallback_ver} impersonation"
-                    )
+                    print(f"[反检测] ✅ 使用 curl_cffi {fallback_ver} 模拟")
                     return session, "curl_cffi", fallback_ver
-                except:
+                except Exception:
                     continue
 
-            # Last resort - no impersonation
+            # 最后手段 - 不使用模拟
             if proxies:
                 session = curl_requests.Session(proxies=proxies)
             else:
                 session = curl_requests.Session()
-            print("[Anti-Detect] ⚠️  curl_cffi loaded but impersonation failed")
-            print("[Anti-Detect]    TLS fingerprint may be detectable!")
+            print("[反检测] ⚠️  curl_cffi 已加载但模拟失败")
+            print("[反检测]    TLS 指纹可能被检测!")
             return session, "curl_cffi", None
 
     except ImportError:
         print("\n" + "=" * 60)
-        print("⚠️  CRITICAL: curl_cffi NOT INSTALLED!")
+        print("⚠️  严重: curl_cffi 未安装!")
         print("=" * 60)
-        print("Without curl_cffi, your TLS fingerprint is DETECTABLE.")
-        print("SheerID will likely REJECT your verification attempts.")
+        print("未安装 curl_cffi，你的 TLS 指纹将被检测")
+        print("SheerID 很可能拒绝你的验证请求")
         print("")
-        print("Install now with: pip install curl_cffi")
+        print("请安装: pip install curl_cffi")
         print("=" * 60 + "\n")
 
-    # Try cloudscraper (Cloudflare bypass, but no TLS spoofing)
+    # 尝试 cloudscraper (Cloudflare 绕过，无 TLS 伪装)
     try:
         import cloudscraper
 
@@ -574,156 +552,142 @@ def create_session(proxy: str = None, impersonate: str = None):
         )
         if proxies:
             session.proxies = proxies
-        print("[Anti-Detect] ⚠️  Using cloudscraper (no TLS impersonation)")
+        print("[反检测] ⚠️  使用 cloudscraper (无 TLS 模拟)")
         return session, "cloudscraper", None
     except ImportError:
         pass
 
-    # Try httpx (async support, but detectable TLS)
+    # 尝试 httpx (支持异步，但 TLS 可检测)
     try:
         import httpx
 
         proxy_url = proxies.get("all://") if proxies else None
         session = httpx.Client(timeout=30, proxy=proxy_url)
-        print("[Anti-Detect] ⚠️  Using httpx (TLS fingerprint DETECTABLE!)")
-        print(
-            "[Anti-Detect]    Expected success rate: ~20-40% (vs 60-80% with curl_cffi)"
-        )
+        print("[反检测] ⚠️  使用 httpx (TLS 指纹可被检测!)")
+        print("[反检测]    预期成功率: ~20-40% (对比 curl_cffi 的 60-80%)")
         return session, "httpx", None
     except ImportError:
         pass
 
-    # Fallback to requests (most detectable)
+    # 回退到 requests (最容易被检测)
     import requests
 
     session = requests.Session()
     if proxies:
         session.proxies = proxies
-    print("[Anti-Detect] ❌ Using requests (VERY HIGH detection risk!)")
-    print("[Anti-Detect]    Expected success rate: ~5-20%")
-    print("[Anti-Detect]    Run: pip install curl_cffi")
+    print("[反检测] ❌ 使用 requests (检测风险极高!)")
+    print("[反检测]    预期成功率: ~5-20%")
+    print("[反检测]    请执行: pip install curl_cffi")
     return session, "requests", None
 
 
 def print_anti_detect_info():
-    """Print info about anti-detection configuration"""
+    """打印反检测配置信息"""
     session, lib, imp = create_session()
     print(f"\n{'=' * 50}")
-    print(f"Anti-Detection Configuration")
+    print(f"反检测配置信息")
     print(f"{'=' * 50}")
-    print(f"  HTTP Library: {lib}")
-    print(f"  Impersonation: {imp or 'None (detectable!)'}")
-    print(f"  User-Agents: {len(USER_AGENTS)} variants")
-    print(f"  Resolutions: {len(RESOLUTIONS)} variants")
-    print(f"  Chrome Versions: {len(CHROME_VERSIONS)} available")
+    print(f"  HTTP 库: {lib}")
+    print(f"  模拟版本: {imp or '无 (可被检测!)'}")
+    print(f"  User-Agent: {len(USER_AGENTS)} 个变体")
+    print(f"  分辨率: {len(RESOLUTIONS)} 个变体")
+    print(f"  Chrome 版本: {len(CHROME_VERSIONS)} 个可用")
 
     if lib == "curl_cffi" and imp:
-        print(f"\n  ✅ TLS Fingerprint: Spoofed as {imp}")
-        print(f"  ✅ Detection Risk: LOW")
+        print(f"\n  ✅ TLS 指纹: 已伪装为 {imp}")
+        print(f"  ✅ 检测风险: 低")
     elif lib == "curl_cffi":
-        print(f"\n  ⚠️  TLS Fingerprint: Partially spoofed")
-        print(f"  ⚠️  Detection Risk: MEDIUM")
+        print(f"\n  ⚠️  TLS 指纹: 部分伪装")
+        print(f"  ⚠️  检测风险: 中")
     else:
-        print(f"\n  ❌ TLS Fingerprint: Python signature (detectable)")
-        print(f"  ❌ Detection Risk: HIGH")
+        print(f"\n  ❌ TLS 指纹: Python 签名 (可被检测)")
+        print(f"  ❌ 检测风险: 高")
 
     print(f"{'=' * 50}\n")
 
-    # Cleanup
+    # 清理资源
     if hasattr(session, "close"):
         session.close()
 
 
 def make_request(session, method: str, url: str, impersonate: str = None, **kwargs):
     """
-    Make HTTP request with proper impersonation for curl_cffi
-
-    This is a helper to ensure impersonation is used per-request
-    for libraries that support it.
+    发送 HTTP 请求，为 curl_cffi 自动应用模拟参数
 
     Args:
-        session: HTTP session from create_session()
-        method: HTTP method (GET, POST, PUT, DELETE)
-        url: Request URL
-        impersonate: Chrome version to impersonate (for curl_cffi)
-        **kwargs: Additional arguments (json, headers, etc.)
-
-    Returns:
-        Response object
+        session: create_session() 返回的 HTTP 会话
+        method: HTTP 方法 (GET, POST, PUT, DELETE)
+        url: 请求 URL
+        impersonate: Chrome 模拟版本 (仅 curl_cffi 有效)
+        **kwargs: 其他参数 (json, headers 等)
     """
     imp = impersonate or DEFAULT_IMPERSONATE
 
-    # Check if this is a curl_cffi session
+    # 检查是否为 curl_cffi 会话
     session_type = type(session).__module__
 
     if "curl_cffi" in session_type:
-        # curl_cffi supports per-request impersonation
+        # curl_cffi 支持按请求设置模拟
         try:
             return session.request(method, url, impersonate=imp, **kwargs)
         except TypeError:
-            # Older version doesn't support per-request impersonate
+            # 旧版本不支持按请求设置模拟
             return session.request(method, url, **kwargs)
     else:
-        # Other libraries - just make the request
         return session.request(method, url, **kwargs)
 
 
 def get_matched_ua_for_impersonate(impersonate: str = None) -> str:
     """
-    Get a User-Agent that matches the Chrome version we're impersonating
+    获取与模拟版本匹配的 User-Agent
 
-    IMPORTANT: The User-Agent MUST match the TLS fingerprint version,
-    otherwise SheerID can detect the mismatch.
+    重要: User-Agent 必须与 TLS 指纹版本匹配，否则 SheerID 可检测到不一致
     """
     imp = impersonate or DEFAULT_IMPERSONATE
 
-    # Extract version number
+    # 提取版本号
     version = imp.replace("chrome", "").replace("edge", "").replace("safari", "")
 
-    # Find matching UA
+    # 查找匹配的 UA
     for ua in USER_AGENTS_CHROME:
         if f"Chrome/{version}." in ua:
             return ua
 
-    # Fallback to first Chrome UA
+    # 回退到第一个 Chrome UA
     return USER_AGENTS_CHROME[0]
 
 
 def warm_session(session, program_id: str = None, headers: dict = None):
     """
-    Warm up session before verification attempt
-    Makes requests look more like a real browser by establishing session first
+    预热会话，模拟真实浏览器页面加载行为
 
     Args:
-        session: HTTP session from create_session()
-        program_id: SheerID program ID (optional)
-        headers: Headers to use (optional)
-
-    Returns:
-        session: Warmed up session
+        session: create_session() 返回的 HTTP 会话
+        program_id: SheerID 项目 ID (可选)
+        headers: 请求头 (可选)
     """
     base_url = "https://services.sheerid.com"
     hdrs = headers or get_headers(for_sheerid=True)
 
     try:
-        # Step 1: Load main API (like browser would on page load)
+        # 第1步: 加载 API 配置（模拟浏览器页面加载）
         session.get(f"{base_url}/rest/v2/config", headers=hdrs, timeout=10)
         random_delay(500, 1000)
-    except:
+    except Exception:
         pass
 
     if program_id:
         try:
-            # Step 2: Load program info
+            # 第2步: 加载项目信息
             session.get(
                 f"{base_url}/rest/v2/program/{program_id}", headers=hdrs, timeout=10
             )
             random_delay(300, 700)
-        except:
+        except Exception:
             pass
 
     try:
-        # Step 3: Check organization endpoint (search with empty term)
+        # 第3步: 查询组织端点（以空关键词搜索）
         params = {"country": "US", "term": ""}
         if program_id:
             params["programId"] = program_id
@@ -734,7 +698,7 @@ def warm_session(session, program_id: str = None, headers: dict = None):
             timeout=10,
         )
         random_delay(200, 500)
-    except:
+    except Exception:
         pass
 
     return session
@@ -744,15 +708,12 @@ def generate_student_email(
     first_name: str, last_name: str, university: dict = None
 ) -> str:
     """
-    Generate realistic student email matching university domain
+    生成与大学域名匹配的学生邮箱
 
     Args:
-        first_name: Student first name
-        last_name: Student last name
-        university: University dict with 'domain' key (optional)
-
-    Returns:
-        Generated email address
+        first_name: 学生名
+        last_name: 学生姓
+        university: 包含 'domain' 键的大学字典 (可选)
     """
     first = first_name.lower().strip()
     last = last_name.lower().strip()
@@ -760,11 +721,11 @@ def generate_student_email(
     domain = university.get("domain", "") if university else ""
 
     if not domain:
-        # Generic email providers
+        # 通用邮箱提供商
         domains = ["gmail.com", "outlook.com", "yahoo.com", "icloud.com"]
         domain = random.choice(domains)
 
-    # Common university email patterns
+    # 常见大学邮箱格式
     patterns = [
         f"{first[0]}{last}@{domain}",  # jsmith@university.edu
         f"{first}.{last}@{domain}",  # john.smith@university.edu
@@ -778,42 +739,31 @@ def generate_student_email(
 
 
 FRAUD_ERROR_HELP = """\
-🚨 Fraud Rule Rejection Detected (fraudRulesReject)
+🚨 检测到欺诈规则拒绝 (fraudRulesReject)
 
-SheerID's fraud/risk engine rejected this attempt. This is usually triggered by one or more risk signals:
-- TLS fingerprint mismatch (Python http stacks vs real browsers)
-- Datacenter / flagged IP reputation
-- Reused device fingerprint / headers / NewRelic patterns across attempts
-- High retry velocity or repeated failures from the same IP
-- Geo mismatch (IP country/region vs organization)
+SheerID 的欺诈/风控引擎拒绝了此次尝试。通常由以下风险信号触发:
+- TLS 指纹不匹配 (Python HTTP 库 vs 真实浏览器)
+- 数据中心 / 被标记的 IP 声誉
+- 多次尝试复用设备指纹 / 请求头 / NewRelic 模式
+- 同一 IP 重试速度过快或重复失败
+- 地理位置不匹配 (IP 国家/地区 vs 组织)
 
-✅ Workarounds (try these, in order):
-  1) Install curl_cffi for TLS spoofing:
+✅ 建议解决方案 (按优先级):
+  1) 安装 curl_cffi 进行 TLS 伪装:
      pip install curl_cffi
-  2) Use a residential proxy instead of a datacenter proxy
-  3) Wait 24-48 hours before retrying (risk score often cools down)
-  4) Try a different university/organization (some are stricter)
-  5) Check if your IP is blacklisted (switch IP / provider if needed)
+  2) 使用住宅代理替代数据中心代理
+  3) 等待 24-48 小时后重试 (风险评分通常会冷却)
+  4) 尝试不同的大学/组织 (部分更严格)
+  5) 检查 IP 是否被拉黑 (必要时更换 IP/提供商)
 
-Notes:
-- Retrying instantly with the same IP + fingerprint can make the block stick longer.
-- If you cannot install curl_cffi, expect a much higher fraud reject rate.
+注意:
+- 使用相同 IP + 指纹立即重试可能导致封禁时间延长
+- 未安装 curl_cffi 时欺诈拒绝率会显著增加
 """
 
 
 def should_retry_fraud(retry_count: int):
-    """Decide whether to retry after a fraudRulesReject.
-
-    Implements a capped exponential backoff schedule:
-    - 30s, 60s, 120s
-    - max 3 retries
-
-    Args:
-        retry_count: Number of retries already attempted (0-based).
-
-    Returns:
-        (should_retry, delay_seconds)
-    """
+    """判断欺诈拒绝后是否重试，使用指数退避调度: 30s, 60s, 120s，最多3次"""
     if retry_count < 0:
         retry_count = 0
 
@@ -831,20 +781,17 @@ def handle_fraud_rejection(
     error_payload=None,
     message: str = None,
 ):
-    """Print a visible fraud banner + actionable help, then return retry guidance.
-
-    This handler is intended to be called when SheerID responds with
-    the `fraudRulesReject` error.
+    """打印欺诈拒绝横幅 + 可操作建议，并返回重试指导
 
     Args:
-        retry_count: Number of retries already attempted (0-based).
-        error_payload: Optional API error JSON payload to display (best-effort).
-        message: Optional human-readable message/context to display.
+        retry_count: 已重试次数 (0开始)
+        error_payload: API 错误 JSON 负载 (可选)
+        message: 人类可读的上下文信息 (可选)
 
     Returns:
         (should_retry, delay_seconds)
     """
-    # ANSI colors (no external deps). If terminal doesn't support ANSI, output is still readable.
+    # ANSI 颜色 (无外部依赖，终端不支持 ANSI 也可正常显示)
     red = "\x1b[31m"
     yellow = "\x1b[33m"
     cyan = "\x1b[36m"
@@ -854,19 +801,19 @@ def handle_fraud_rejection(
     banner = "\n".join(
         [
             "+--------------------------------------------------------------+",
-            "|                  !!! FRAUD DETECTION HIT !!!                 |",
-            "|                 SheerID returned fraudRulesReject             |",
+            "|                  !!! 欺诈检测触发 !!!                    |",
+            "|              SheerID 返回 fraudRulesReject                 |",
             "+--------------------------------------------------------------+",
         ]
     )
 
     print(f"\n{red}{bold}{banner}{reset}")
-    print(f"{yellow}❌ Verification blocked by SheerID fraud rules.{reset}")
+    print(f"{yellow}❌ 验证被 SheerID 欺诈规则拦截{reset}")
 
     if message:
-        print(f"{cyan}🧾 Context:{reset} {message}")
+        print(f"{cyan}🧾 上下文:{reset} {message}")
 
-    # Best-effort extraction of useful fields without assuming a strict schema.
+    # 尽力提取有用的错误字段
     if isinstance(error_payload, dict) and error_payload:
         interesting_keys = [
             "code",
@@ -883,8 +830,8 @@ def handle_fraud_rejection(
                 extracted[k] = error_payload.get(k)
 
         if extracted:
-            # Keep this compact to avoid dumping huge payloads into the console.
-            print(f"{cyan}🔎 SheerID error payload (high-signal fields):{reset}")
+            # 保持简洁，避免输出过大的负载
+            print(f"{cyan}🔎 SheerID 错误负载 (关键字段):{reset}")
             for k, v in extracted.items():
                 v_str = str(v)
                 if len(v_str) > 400:
@@ -897,61 +844,55 @@ def handle_fraud_rejection(
 
     should_retry, delay_seconds = should_retry_fraud(retry_count)
     if should_retry:
-        print(
-            f"{yellow}⏳ Suggested retry:{reset} attempt #{retry_count + 1}/3 in {delay_seconds}s"
-        )
-        print(
-            f"{yellow}💡 Tip:{reset} rotate IP/fingerprint before retrying; avoid rapid-fire retries."
-        )
+        print(f"{yellow}⏳ 建议重试:{reset} 第 {retry_count + 1}/3 次，{delay_seconds}秒后")
+        print(f"{yellow}💡 提示:{reset} 重试前建议更换 IP/指纹，避免快速重试")
     else:
-        print(f"{red}🛑 Max retries reached.{reset} Do NOT keep spamming requests.")
-        print(
-            f"{yellow}✅ Best next step:{reset} wait 24-48h and change IP/fingerprint."
-        )
+        print(f"{red}🛑 达到最大重试次数{reset}，请勿继续发送请求")
+        print(f"{yellow}✅ 最佳下一步:{reset} 等待 24-48 小时并更换 IP/指纹")
 
     return should_retry, delay_seconds
 
 
 if __name__ == "__main__":
-    # Test
+    # 测试
     print("\n" + "=" * 60)
-    print(" Anti-Detection Module Test ")
+    print(" 反检测模块测试 ")
     print("=" * 60 + "\n")
 
     print_anti_detect_info()
 
-    print(f"Sample Fingerprints:")
-    print(f"  Basic Hash: {get_fingerprint()}")
-    print(f"  Canvas FP: {get_canvas_fingerprint()}")
-    print(f"  Audio FP: {get_audio_fingerprint()}")
+    print(f"示例指纹:")
+    print(f"  基础哈希: {get_fingerprint()}")
+    print(f"  Canvas 指纹: {get_canvas_fingerprint()}")
+    print(f"  音频指纹: {get_audio_fingerprint()}")
 
     webgl = get_webgl_fingerprint()
-    print(f"  WebGL Vendor: {webgl['vendor']}")
-    print(f"  WebGL Renderer: {webgl['renderer'][:40]}...")
+    print(f"  WebGL 厂商: {webgl['vendor']}")
+    print(f"  WebGL 渲染器: {webgl['renderer'][:40]}...")
 
-    print(f"\nSample User-Agent:")
+    print(f"\n示例 User-Agent:")
     ua = get_matched_ua_for_impersonate()
     print(f"  {ua[:70]}...")
 
-    print(f"\nSample Headers (SheerID):")
+    print(f"\n示例请求头 (SheerID):")
     headers = get_headers(for_sheerid=True)
     for k, v in list(headers.items())[:8]:
         print(f"  {k}: {str(v)[:50]}{'...' if len(str(v)) > 50 else ''}")
 
-    print(f"\nNewRelic Headers:")
+    print(f"\nNewRelic 请求头:")
     nr = generate_newrelic_headers()
     print(f"  traceparent: {nr['traceparent'][:50]}...")
 
     print("\n" + "=" * 60)
-    print(" Recommendations ")
+    print(" 建议 ")
     print("=" * 60)
     print("""
-1. Install curl_cffi for TLS spoofing:
+1. 安装 curl_cffi 进行 TLS 伪装:
    pip install curl_cffi
 
-2. Use residential proxies (datacenter IPs are often blocked)
+2. 使用住宅代理 (数据中心 IP 经常被封禁)
 
-3. Match proxy location to university country
+3. 匹配代理位置与大学国家
 
-4. Generate unique fingerprints for each verification attempt
+4. 每次验证生成独立的指纹
 """)

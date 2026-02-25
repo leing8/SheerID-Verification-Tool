@@ -1,50 +1,48 @@
 """
-Google One (Gemini) Student Verification Tool
-SheerID Student Verification for Google One AI Premium
+Google One (Gemini) 学生验证工具
+SheerID 学生验证 - Google One AI Premium
 
-⚠️  IMPORTANT NOTICE (Jan 2026):
-Google has changed Gemini student verification to US-ONLY for new sign-ups.
-Users from other countries may experience high failure rates.
+⚠️  重要提示 (2026年1月):
+Google 已将 Gemini 学生验证限制为仅限美国新注册用户
+其他国家用户可能遇到较高的失败率
 
-Enhanced with:
-- Success rate tracking per organization
-- Weighted university selection (US schools prioritized)
-- Retry with exponential backoff
-- Rate limiting avoidance
-- Anti-detection with Chrome TLS impersonation
+增强功能:
+- 按组织追踪成功率
+- 加权大学选择 (美国院校优先)
+- 指数退避重试
+- 反速率限制
+- Chrome TLS 模拟反检测
 
-Requirements:
-- curl_cffi: pip install curl_cffi (CRITICAL for TLS spoofing)
-- Residential proxy matching US location (STRONGLY recommended)
+依赖:
+- curl_cffi: pip install curl_cffi (TLS 伪装必需)
+- 匹配美国位置的住宅代理 (强烈推荐)
 
 Author: ThanhNguyxn
 """
 
-import os
+import hashlib
+import json
+import random
 import re
 import sys
-import json
 import time
-import random
-import hashlib
-from pathlib import Path
 from io import BytesIO
+from pathlib import Path
 from typing import Dict, Optional, Tuple
-from functools import wraps
 
 try:
     import httpx
 except ImportError:
-    print("❌ Error: httpx required. Install: pip install httpx")
+    print("❌ 错误: 需要 httpx，请安装: pip install httpx")
     sys.exit(1)
 
 try:
     from PIL import Image, ImageDraw, ImageFont
 except ImportError:
-    print("❌ Error: Pillow required. Install: pip install Pillow")
+    print("❌ 错误: 需要 Pillow，请安装: pip install Pillow")
     sys.exit(1)
 
-# Import anti-detection module
+# 导入反检测模块
 try:
     sys.path.insert(0, str(Path(__file__).parent.parent))
     from anti_detect import (
@@ -60,23 +58,23 @@ try:
     )
 
     HAS_ANTI_DETECT = True
-    print("[INFO] Anti-detection module loaded")
+    print("[信息] 反检测模块已加载")
 except ImportError:
     HAS_ANTI_DETECT = False
-    print("[WARN] anti_detect.py not found, using basic headers")
-    print("[WARN] Detection risk is HIGH without anti_detect module!")
+    print("[警告] 未找到 anti_detect.py，使用基础请求头")
+    print("[警告] 没有反检测模块检测风险极高!")
 
 
-# ============ CONFIG ============
+# ============ 配置 ============
 PROGRAM_ID = "67c8c14f5f17a83b745e3f82"
 SHEERID_API_URL = "https://services.sheerid.com/rest/v2"
 MIN_DELAY = 300
 MAX_DELAY = 800
 
 
-# ============ STATS TRACKING ============
+# ============ 成功率追踪 ============
 class Stats:
-    """Track success rates by organization"""
+    """按组织追踪成功率"""
 
     def __init__(self):
         self.file = Path(__file__).parent / "stats.json"
@@ -112,24 +110,24 @@ class Stats:
         )
 
     def print_stats(self):
-        print(f"\n📊 Statistics:")
+        print("\n📊 统计:")
         print(
             f"   Total: {self.data['total']} | ✅ {self.data['success']} | ❌ {self.data['failed']}"
         )
         if self.data["total"]:
-            print(f"   Success Rate: {self.get_rate():.1f}%")
+            print(f"   成功率: {self.get_rate():.1f}%")
 
 
 stats = Stats()
 
 
-# ============ UNIVERSITIES WITH WEIGHTS ============
-# NOTE: As of Jan 2026, new Gemini student sign-ups are US-ONLY
-# Other countries may work for existing users but new sign-ups restricted
+# ============ 大学列表与权重 ============
+# 注意: 2026年1月起，Gemini 学生新注册仅限美国
+# 其他国家可能对现有用户有效，但新注册受限
 
 UNIVERSITIES = [
-    # =========== USA - HIGH PRIORITY ===========
-    # These have highest success rates for new sign-ups
+    # =========== 美国 - 高优先级 ===========
+    # 新注册成功率最高
     {
         "id": 2565,
         "name": "Pennsylvania State University-Main Campus",
@@ -179,7 +177,7 @@ UNIVERSITIES = [
         "domain": "northwestern.edu",
         "weight": 88,
     },
-    # More US Universities
+    # 更多美国大学
     {"id": 3568, "name": "University of Michigan", "domain": "umich.edu", "weight": 95},
     {
         "id": 3686,
@@ -272,7 +270,7 @@ UNIVERSITIES = [
         "domain": "ucsb.edu",
         "weight": 87,
     },
-    # Community Colleges (may have higher success)
+    # 社区学院 (可能成功率更高)
     {"id": 2874, "name": "Santa Monica College", "domain": "smc.edu", "weight": 85},
     {
         "id": 2350,
@@ -280,8 +278,8 @@ UNIVERSITIES = [
         "domain": "nvcc.edu",
         "weight": 84,
     },
-    # =========== OTHER COUNTRIES (Lower priority - may not work for new sign-ups) ===========
-    # Canada
+    # =========== 其他国家 (低优先级 - 新注册可能无效) ===========
+    # 加拿大
     {
         "id": 328355,
         "name": "University of Toronto",
@@ -294,7 +292,7 @@ UNIVERSITIES = [
         "domain": "ubc.ca",
         "weight": 38,
     },
-    # UK
+    # 英国
     {"id": 273409, "name": "University of Oxford", "domain": "ox.ac.uk", "weight": 35},
     {
         "id": 273378,
@@ -302,7 +300,7 @@ UNIVERSITIES = [
         "domain": "cam.ac.uk",
         "weight": 35,
     },
-    # India (likely blocked for new sign-ups)
+    # 印度 (新注册可能被封禁)
     {
         "id": 10007277,
         "name": "Indian Institute of Technology Delhi",
@@ -310,7 +308,7 @@ UNIVERSITIES = [
         "weight": 20,
     },
     {"id": 3819983, "name": "University of Mumbai", "domain": "mu.ac.in", "weight": 15},
-    # Australia
+    # 澳大利亚
     {
         "id": 345301,
         "name": "The University of Melbourne",
@@ -327,7 +325,7 @@ UNIVERSITIES = [
 
 
 def select_university() -> Dict:
-    """Weighted random selection based on success rates"""
+    """基于成功率的加权随机选择"""
     weights = []
     for uni in UNIVERSITIES:
         weight = uni["weight"] * (stats.get_rate(uni["name"]) / 50)
@@ -344,7 +342,7 @@ def select_university() -> Dict:
     return {**UNIVERSITIES[0], "idExtended": str(UNIVERSITIES[0]["id"])}
 
 
-# ============ UTILITIES ============
+# ============ 工具函数 ============
 FIRST_NAMES = [
     "James",
     "John",
@@ -414,6 +412,7 @@ FIRST_NAMES = [
     "Charlotte",
     "Amelia",
 ]
+
 LAST_NAMES = [
     "Smith",
     "Johnson",
@@ -478,8 +477,8 @@ def random_delay():
 
 
 def generate_fingerprint() -> str:
-    """Generate realistic browser fingerprint to avoid fraud detection"""
-    # Realistic screen resolutions
+    """生成模拟真实浏览器指纹以规避欺诈检测"""
+    # 常见屏幕分辨率
     resolutions = [
         "1920x1080",
         "1366x768",
@@ -488,13 +487,13 @@ def generate_fingerprint() -> str:
         "1280x720",
         "2560x1440",
     ]
-    # Common timezones
+    # 常见时区
     timezones = [-8, -7, -6, -5, -4, 0, 1, 2, 3, 5.5, 8, 9, 10]
-    # Common languages
+    # 常见语言
     languages = ["en-US", "en-GB", "en-CA", "en-AU", "es-ES", "fr-FR", "de-DE", "pt-BR"]
-    # Common platforms
+    # 常见平台
     platforms = ["Win32", "MacIntel", "Linux x86_64"]
-    # Browser vendors
+    # 浏览器厂商
     vendors = ["Google Inc.", "Apple Computer, Inc.", ""]
 
     components = [
@@ -505,9 +504,9 @@ def generate_fingerprint() -> str:
         random.choice(languages),
         random.choice(platforms),
         random.choice(vendors),
-        str(random.randint(1, 16)),  # hardware concurrency (CPU cores)
-        str(random.randint(2, 32)),  # device memory GB
-        str(random.randint(0, 1)),  # touch support
+        str(random.randint(1, 16)),  # CPU 核心数
+        str(random.randint(2, 32)),  # 设备内存(GB)
+        str(random.randint(0, 1)),   # 触屏支持
     ]
     return hashlib.md5("|".join(components).encode()).hexdigest()
 
@@ -532,10 +531,9 @@ def generate_birth_date() -> str:
     return f"{year}-{month:02d}-{day:02d}"
 
 
-# ============ DOCUMENT GENERATOR ============
-# ============ DOCUMENT GENERATOR ============
+# ============ 文档生成器 ============
 def generate_transcript(first: str, last: str, school: str, dob: str) -> bytes:
-    """Generate fake academic transcript (higher success rate)"""
+    """生成学术成绩单 (成功率更高)"""
     w, h = 850, 1100
     img = Image.new("RGB", (w, h), (255, 255, 255))
     draw = ImageDraw.Draw(img)
@@ -545,10 +543,10 @@ def generate_transcript(first: str, last: str, school: str, dob: str) -> bytes:
         font_title = ImageFont.truetype("arial.ttf", 24)
         font_text = ImageFont.truetype("arial.ttf", 16)
         font_bold = ImageFont.truetype("arialbd.ttf", 16)
-    except:
+    except Exception:
         font_header = font_title = font_text = font_bold = ImageFont.load_default()
 
-    # 1. Header
+    # 1. 标题
     draw.text(
         (w // 2, 50), school.upper(), fill=(0, 0, 0), font=font_header, anchor="mm"
     )
@@ -561,7 +559,7 @@ def generate_transcript(first: str, last: str, school: str, dob: str) -> bytes:
     )
     draw.line([(50, 110), (w - 50, 110)], fill=(0, 0, 0), width=2)
 
-    # 2. Student Info
+    # 2. 学生信息
     y = 150
     draw.text((50, y), f"Student Name: {first} {last}", fill=(0, 0, 0), font=font_bold)
     draw.text(
@@ -580,7 +578,7 @@ def generate_transcript(first: str, last: str, school: str, dob: str) -> bytes:
     )
     y += 40
 
-    # 3. Current Enrollment Status
+    # 3. 当前注册状态
     draw.rectangle([(50, y), (w - 50, y + 40)], fill=(240, 240, 240))
     draw.text(
         (w // 2, y + 20),
@@ -591,7 +589,7 @@ def generate_transcript(first: str, last: str, school: str, dob: str) -> bytes:
     )
     y += 70
 
-    # 4. Courses
+    # 4. 课程列表
     courses = [
         ("CS 101", "Intro to Computer Science", "4.0", "A"),
         ("MATH 201", "Calculus I", "3.0", "A-"),
@@ -600,7 +598,7 @@ def generate_transcript(first: str, last: str, school: str, dob: str) -> bytes:
         ("HIST 110", "World History", "3.0", "A"),
     ]
 
-    # Table Header
+    # 表头
     draw.text((50, y), "Course Code", font=font_bold, fill=(0, 0, 0))
     draw.text((200, y), "Course Title", font=font_bold, fill=(0, 0, 0))
     draw.text((600, y), "Credits", font=font_bold, fill=(0, 0, 0))
@@ -620,11 +618,11 @@ def generate_transcript(first: str, last: str, school: str, dob: str) -> bytes:
     draw.line([(50, y), (w - 50, y)], fill=(0, 0, 0), width=1)
     y += 30
 
-    # 5. Summary
+    # 5. 汇总
     draw.text((50, y), "Cumulative GPA: 3.85", font=font_bold, fill=(0, 0, 0))
     draw.text((w - 300, y), "Academic Standing: Good", font=font_bold, fill=(0, 0, 0))
 
-    # 6. Watermark / Footer
+    # 6. 水印/页脚
     draw.text(
         (w // 2, h - 50),
         "This document is electronically generated and valid without signature.",
@@ -639,9 +637,9 @@ def generate_transcript(first: str, last: str, school: str, dob: str) -> bytes:
 
 
 def generate_student_id(first: str, last: str, school: str) -> bytes:
-    """Generate fake student ID card (Improved)"""
+    """生成学生证卡片"""
     w, h = 650, 400
-    # Randomize background color slightly
+    # 随机微调背景色
     bg_color = (
         random.randint(240, 255),
         random.randint(240, 255),
@@ -655,10 +653,10 @@ def generate_student_id(first: str, last: str, school: str) -> bytes:
         font_md = ImageFont.truetype("arial.ttf", 18)
         font_sm = ImageFont.truetype("arial.ttf", 14)
         font_bold = ImageFont.truetype("arialbd.ttf", 20)
-    except:
+    except Exception:
         font_lg = font_md = font_sm = font_bold = ImageFont.load_default()
 
-    # Header color based on school name hash to be consistent but varied
+    # 根据校名哈希生成一致但有变化的头部颜色
     header_color = (
         random.randint(0, 50),
         random.randint(0, 50),
@@ -670,13 +668,13 @@ def generate_student_id(first: str, last: str, school: str) -> bytes:
         (w // 2, 40), school.upper(), fill=(255, 255, 255), font=font_lg, anchor="mm"
     )
 
-    # Photo placeholder
+    # 照片占位
     draw.rectangle(
         [(30, 100), (160, 280)], outline=(100, 100, 100), width=2, fill=(220, 220, 220)
     )
     draw.text((95, 190), "PHOTO", fill=(150, 150, 150), font=font_md, anchor="mm")
 
-    # Info
+    # 信息
     x_info = 190
     y = 110
     draw.text((x_info, y), f"{first} {last}", fill=(0, 0, 0), font=font_bold)
@@ -700,7 +698,7 @@ def generate_student_id(first: str, last: str, school: str) -> bytes:
         font=font_md,
     )
 
-    # Barcode strip
+    # 条形码
     draw.rectangle([(0, 320), (w, 380)], fill=(255, 255, 255))
     for i in range(40):
         x = 50 + i * 14
@@ -712,20 +710,20 @@ def generate_student_id(first: str, last: str, school: str) -> bytes:
     return buf.getvalue()
 
 
-# ============ VERIFIER ============
+# ============ 验证器 ============
 class GeminiVerifier:
-    """Gemini Student Verification with enhanced features"""
+    """增强版 Gemini 学生验证器"""
 
     def __init__(self, url: str, proxy: str = None):
         self.url = url
         self.vid = self._parse_id(url)
         self.fingerprint = generate_fingerprint()
 
-        # Use enhanced anti-detection session
+        # 使用增强版反检测会话
         if HAS_ANTI_DETECT:
             self.client, self.lib_name, self.impersonate_target = create_session(proxy)
             print(
-                f"[INFO] Session created using {self.lib_name} (Impersonating: {self.impersonate_target})"
+                f"[信息] 会话已创建，使用 {self.lib_name} (模拟: {self.impersonate_target})"
             )
         else:
             proxy_url = None
@@ -752,7 +750,7 @@ class GeminiVerifier:
     ) -> Tuple[Dict, int]:
         random_delay()
         try:
-            # Use anti-detect headers if available
+            # 可用时使用反检测请求头
             headers = (
                 get_headers(for_sheerid=True)
                 if HAS_ANTI_DETECT
@@ -767,25 +765,24 @@ class GeminiVerifier:
                 parsed = {"_text": resp.text}
             return parsed, resp.status_code
         except Exception as e:
-            raise Exception(f"Request failed: {e}")
+            raise Exception(f"请求失败: {e}")
 
     def _upload_s3(self, url: str, data: bytes) -> bool:
-        # Different session implementations accept different kw names
-        # Try several variants to maximize compatibility (curl_cffi, httpx, requests)
+        # 不同 HTTP 库接受不同的参数名，尝试多种方式以最大化兼容性 (curl_cffi, httpx, requests)
         attempts = []
-        # First try: common httpx signature
+        # 第一种: httpx 签名
         attempts.append(
             lambda: self.client.put(
                 url, content=data, headers={"Content-Type": "image/png"}, timeout=60
             )
         )
-        # Second try: requests-like signature
+        # 第二种: requests 签名
         attempts.append(
             lambda: self.client.put(
                 url, data=data, headers={"Content-Type": "image/png"}, timeout=60
             )
         )
-        # Third try: generic request method
+        # 第三种: 通用 request 方法
         attempts.append(
             lambda: self.client.request(
                 "PUT", url, data=data, headers={"Content-Type": "image/png"}, timeout=60
@@ -803,10 +800,10 @@ class GeminiVerifier:
                         body = resp.json()
                     except Exception:
                         body = getattr(resp, "text", str(resp))
-                    print(f"     ❗ S3 upload failed: HTTP {resp.status_code} | {body}")
+                    print(f"     ❗ S3 上传失败: HTTP {resp.status_code} | {body}")
                     return False
                 else:
-                    # If resp is not a requests-like object, treat success if truthy
+                    # 响应非标准对象，有值则视为成功
                     if resp:
                         return True
                     return False
@@ -817,69 +814,69 @@ class GeminiVerifier:
                 last_exc = e
                 continue
 
-        print(f"     ❗ S3 upload failed after attempts. Last error: {last_exc}")
+        print(f"     ❗ S3 上传失败，最后错误: {last_exc}")
         return False
 
     def check_link(self) -> Dict:
-        """Check if verification link is valid"""
+        """检查验证链接是否有效"""
         if not self.vid:
-            return {"valid": False, "error": "Invalid URL"}
+            return {"valid": False, "error": "无效的 URL"}
 
         data, status = self._request("GET", f"/verification/{self.vid}")
         if status != 200:
             return {"valid": False, "error": f"HTTP {status}"}
 
         step = data.get("currentStep", "")
-        # Accept multiple valid steps - handle re-upload after rejection
+        # 接受多个有效步骤 - 处理拒绝后重新上传
         valid_steps = ["collectStudentPersonalInfo", "docUpload", "sso"]
         if step in valid_steps:
             return {"valid": True, "step": step}
         elif step == "success":
-            return {"valid": False, "error": "Already verified"}
+            return {"valid": False, "error": "已验证通过"}
         elif step == "pending":
-            return {"valid": False, "error": "Already pending review"}
-        return {"valid": False, "error": f"Invalid step: {step}"}
+            return {"valid": False, "error": "已在审核中"}
+        return {"valid": False, "error": f"无效步骤: {step}"}
 
     def verify(self) -> Dict:
-        """Run full verification"""
+        """运行完整验证流程"""
         if not self.vid:
-            return {"success": False, "error": "Invalid verification URL"}
+            return {"success": False, "error": "无效的验证 URL"}
 
         try:
-            # Check current step first
+            # 先检查当前步骤
             check_data, check_status = self._request("GET", f"/verification/{self.vid}")
             current_step = (
                 check_data.get("currentStep", "") if check_status == 200 else ""
             )
 
-            # Generate info
+            # 生成信息
             first, last = generate_name()
             self.org = select_university()
             email = generate_email(first, last, self.org["domain"])
             dob = generate_birth_date()
 
-            print(f"\n   🎓 Student: {first} {last}")
-            print(f"   📧 Email: {email}")
-            print(f"   🏫 School: {self.org['name']}")
-            print(f"   🎂 DOB: {dob}")
+            print(f"\n   🎓 学生: {first} {last}")
+            print(f"   📧 邮箱: {email}")
+            print(f"   🏫 学校: {self.org['name']}")
+            print(f"   🎂 出生日期: {dob}")
             print(f"   🔑 ID: {self.vid[:20]}...")
-            print(f"   📍 Starting step: {current_step}")
+            print(f"   📍 当前步骤: {current_step}")
 
-            # Step 1: Generate document
+            # 步骤1: 生成文档
             doc_type = "transcript" if random.random() < 0.7 else "id_card"
             if doc_type == "transcript":
-                print("\n   ▶ Step 1/3: Generating academic transcript...")
+                print("\n   ▶ 步骤 1/3: 生成学术成绩单...")
                 doc = generate_transcript(first, last, self.org["name"], dob)
                 filename = "transcript.png"
             else:
-                print("\n   ▶ Step 1/3: Generating student ID...")
+                print("\n   ▶ 步骤 1/3: 生成学生证...")
                 doc = generate_student_id(first, last, self.org["name"])
                 filename = "student_card.png"
-            print(f"     📄 Size: {len(doc) / 1024:.1f} KB")
+            print(f"     📄 大小: {len(doc) / 1024:.1f} KB")
 
-            # Step 2: Submit info (skip if already past this step)
+            # 步骤2: 提交信息 (已过此步骤则跳过)
             if current_step == "collectStudentPersonalInfo":
-                print("   ▶ Step 2/3: Submitting student info...")
+                print("   ▶ 步骤 2/3: 提交学生信息...")
                 body = {
                     "firstName": first,
                     "lastName": last,
@@ -910,16 +907,16 @@ class GeminiVerifier:
 
                 if status != 200:
                     stats.record(self.org["name"], False)
-                    print(f"     ❗ Submit failed: HTTP {status}")
-                    print(f"     ❗ Response body: {data}")
+                    print(f"     ❗ 提交失败: HTTP {status}")
+                    print(f"     ❗ 响应内容: {data}")
                     return {
                         "success": False,
-                        "error": f"Submit failed: {status} - {data}",
+                        "error": f"提交失败: {status} - {data}",
                     }
 
                 if data.get("currentStep") == "error":
                     error_ids = data.get("errorIds", [])
-                    # Check for fraud rejection
+                    # 检查欺诈拒绝
                     if "fraudRulesReject" in str(error_ids):
                         if HAS_ANTI_DETECT:
                             handle_fraud_rejection(
@@ -934,22 +931,22 @@ class GeminiVerifier:
                         "is_fraud_reject": "fraudRulesReject" in str(error_ids),
                     }
 
-                print(f"     📍 Current step: {data.get('currentStep')}")
+                print(f"     📍 当前步骤: {data.get('currentStep')}")
                 current_step = data.get("currentStep", "")
             elif current_step in ["docUpload", "sso"]:
-                print("   ▶ Step 2/3: Skipping (already past info submission)...")
+                print("   ▶ 步骤 2/3: 跳过 (已过信息提交)...")
             else:
                 print(
-                    f"   ▶ Step 2/3: Unknown step '{current_step}', attempting to continue..."
+                    f"   ▶ 步骤 2/3: 未知步骤 '{current_step}'，尝试继续..."
                 )
 
-            # Step 3: Skip SSO if needed (PastKing logic)
+            # 步骤3: 跳过 SSO (如需要)
             if current_step in ["sso", "collectStudentPersonalInfo"]:
-                print("   ▶ Step 3/4: Skipping SSO...")
+                print("   ▶ 步骤 3/4: 跳过 SSO...")
                 self._request("DELETE", f"/verification/{self.vid}/step/sso")
 
-            # Step 4: Upload document
-            print("   ▶ Step 4/5: Uploading document...")
+            # 步骤4: 上传文档
+            print("   ▶ 步骤 4/5: 上传文档...")
             upload_body = {
                 "files": [
                     {
@@ -965,28 +962,28 @@ class GeminiVerifier:
 
             if not data.get("documents"):
                 stats.record(self.org["name"], False)
-                return {"success": False, "error": "No upload URL"}
+                return {"success": False, "error": "没有上传 URL"}
 
             upload_url = data["documents"][0].get("uploadUrl")
             if not self._upload_s3(upload_url, doc):
                 stats.record(self.org["name"], False)
-                return {"success": False, "error": "Upload failed"}
+                return {"success": False, "error": "上传失败"}
 
-            print("     ✅ Document uploaded!")
+            print("     ✅ 文档已上传!")
 
-            # Step 5: Complete document upload (PastKing logic)
-            print("   ▶ Step 5/5: Completing upload...")
+            # 步骤5: 完成文档上传
+            print("   ▶ 步骤 5/5: 完成上传...")
             data, status = self._request(
                 "POST", f"/verification/{self.vid}/step/completeDocUpload"
             )
             final_step = data.get("currentStep", "unknown")
-            print(f"     📍 Final step: {final_step}")
+            print(f"     📍 最终步骤: {final_step}")
 
             if final_step == "success":
                 stats.record(self.org["name"], True)
                 return {
                     "success": True,
-                    "message": "Verified instantly! No review needed.",
+                    "message": "已立即验证! 无需审核。",
                     "student": f"{first} {last}",
                     "email": email,
                     "school": self.org["name"],
@@ -996,7 +993,7 @@ class GeminiVerifier:
                 return {
                     "success": False,
                     "pending": True,
-                    "message": "Document submitted for review. Wait 24-48h for result.",
+                    "message": "文档已提交审核，等待 24-48 小时结果。",
                     "student": f"{first} {last}",
                     "email": email,
                     "school": self.org["name"],
@@ -1006,15 +1003,15 @@ class GeminiVerifier:
                 error_ids = data.get("errorIds", [])
                 return {
                     "success": False,
-                    "error": f"Rejected: {error_ids}"
+                    "error": f"被拒绝: {error_ids}"
                     if error_ids
-                    else "Document rejected",
+                    else "文档被拒绝",
                 }
             else:
                 return {
                     "success": False,
                     "pending": True,
-                    "message": f"Unknown status: {final_step}. Check manually.",
+                    "message": f"未知状态: {final_step}，请手动检查。",
                     "student": f"{first} {last}",
                     "email": email,
                     "school": self.org["name"],
@@ -1026,75 +1023,75 @@ class GeminiVerifier:
             return {"success": False, "error": str(e)}
 
 
-# ============ MAIN ============
+# ============ 主程序 ============
 def main():
     import argparse
 
     parser = argparse.ArgumentParser(
-        description="Google One (Gemini) Student Verification Tool"
+        description="Google One (Gemini) 学生验证工具"
     )
-    parser.add_argument("url", nargs="?", help="Verification URL")
+    parser.add_argument("url", nargs="?", help="验证 URL")
     parser.add_argument(
-        "--proxy", help="Proxy server (host:port or http://user:pass@host:port)"
+        "--proxy", help="代理服务器 (host:port 或 http://user:pass@host:port)"
     )
     parser.add_argument(
-        "--force", action="store_true", help="Force run even with warnings"
+        "--force", action="store_true", help="强制运行，跳过警告"
     )
     args = parser.parse_args()
 
     print()
     print("╔" + "═" * 56 + "╗")
-    print("║" + " 🤖 Google One (Gemini) Verification Tool".center(56) + "║")
-    print("║" + " SheerID Student Discount".center(56) + "║")
+    print("║" + " 🤖 Google One (Gemini) 验证工具".center(56) + "║")
+    print("║" + " SheerID 学生优惠".center(56) + "║")
     print("╚" + "═" * 56 + "╝")
     print()
 
-    # ⚠️ US-ONLY WARNING
+    # ⚠️ 仅限美国警告
     print("   " + "⚠" * 20)
-    print("   ⚠️  IMPORTANT WARNING (Jan 2026):")
-    print("   ⚠️  Gemini student verification is now US-ONLY!")
+    print("   ⚠️  重要警告 (2026年1月):")
+    print("   ⚠️  Gemini 学生验证现已限制为仅限美国!")
     print("   ⚠️  ")
-    print("   ⚠️  Requirements for success:")
-    print("   ⚠️  1. US residential proxy (datacenter IPs blocked)")
-    print("   ⚠️  2. curl_cffi installed (pip install curl_cffi)")
-    print("   ⚠️  3. US university selection")
+    print("   ⚠️  成功要求:")
+    print("   ⚠️  1. 美国住宅代理 (数据中心 IP 被封禁)")
+    print("   ⚠️  2. 已安装 curl_cffi (pip install curl_cffi)")
+    print("   ⚠️  3. 美国大学选择")
     print("   ⚠️  ")
-    print("   ⚠️  Non-US users: Consider using perplexity-verify-tool")
-    print("   ⚠️  or spotify-verify-tool instead.")
+    print("   ⚠️  非美国用户: 建议使用 perplexity-verify-tool")
+    print("   ⚠️  或 spotify-verify-tool 替代")
     print("   " + "⚠" * 20)
     print()
 
     if not args.force:
-        confirm = input("   Continue anyway? (y/N): ").strip().lower()
+        confirm = input("   是否继续? (y/N): ").strip().lower()
         if confirm != "y":
-            print("\n   Aborted. Use --force to skip this warning.")
+            print("\n   已中止。使用 --force 跳过此警告")
             return
 
-    # Get URL
+    # 获取 URL
     if args.url:
         url = args.url
     else:
-        url = input("\n   Enter verification URL: ").strip()
+        url = input("\n   请输入验证 URL: ").strip()
 
     if not url or "sheerid.com" not in url:
-        print("\n   ❌ Invalid URL. Must contain sheerid.com")
+        print("\n   ❌ 无效 URL，必须包含 sheerid.com")
         return
 
-    # Show proxy info
+    # 显示代理信息
     if args.proxy:
-        print(f"   🔒 Using proxy: {args.proxy}")
+        print(f"   🔒 使用代理: {args.proxy}")
     else:
-        print("   ⚠️  No proxy specified! Using direct connection.")
-        print("   ⚠️  This may result in verification failure.")
+        print("   ⚠️  未指定代理! 使用直连")
+        print("   ⚠️  可能导致验证失败")
 
-    print("\n   ⏳ Processing...")
+    print("\n   ⏳ 处理中...")
 
     verifier = GeminiVerifier(url, proxy=args.proxy)
 
-    # Check link first
+    # 先检查链接
     check = verifier.check_link()
     if not check.get("valid"):
-        print(f"\n   ❌ Link Error: {check.get('error')}")
+        print(f"\n   ❌ 链接错误: {check.get('error')}")
         return
 
     result = verifier.verify()
@@ -1102,22 +1099,22 @@ def main():
     print()
     print("─" * 58)
     if result.get("success"):
-        print("   🎉 VERIFIED INSTANTLY!")
+        print("   🎉 立即验证成功!")
         print(f"   👤 {result.get('student')}")
         print(f"   📧 {result.get('email')}")
         print(f"   🏫 {result.get('school')}")
         print()
-        print("   ✅ No review needed - verified via authoritative database!")
+        print("   ✅ 无需审核 - 已通过权威数据库验证!")
     elif result.get("pending"):
-        print("   ⏳ SUBMITTED FOR REVIEW")
+        print("   ⏳ 已提交审核")
         print(f"   👤 {result.get('student')}")
         print(f"   📧 {result.get('email')}")
         print(f"   🏫 {result.get('school')}")
         print()
-        print("   ⚠️  Document uploaded, waiting for review (24-48h)")
-        print("   ⚠️  This is NOT a guaranteed success!")
+        print("   ⚠️  文档已上传，等待审核 (24-48小时)")
+        print("   ⚠️  这不保证一定成功!")
     else:
-        print(f"   ❌ FAILED: {result.get('error')}")
+        print(f"   ❌ 失败: {result.get('error')}")
     print("─" * 58)
 
     stats.print_stats()
