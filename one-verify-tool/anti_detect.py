@@ -23,13 +23,12 @@ CRITICAL: For best results, install curl_cffi:
 Without curl_cffi, SheerID can detect Python's TLS fingerprint and reject requests.
 """
 
-import random
+import base64
 import hashlib
+import json
+import random
 import time
 import uuid
-import base64
-import json
-import sys
 
 # ============ CHROME IMPERSONATION VERSIONS ============
 # These are the Chrome versions that curl_cffi can impersonate
