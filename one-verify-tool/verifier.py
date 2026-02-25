@@ -15,8 +15,9 @@ from anti_detect import (
     handle_fraud_rejection,
 )
 from anti_detect.fingerprint.base import get_seeded_random
+from anti_detect.session import warm_session, make_request
 from config import SHEERID_API_URL, PROGRAM_ID
-from doc_generator import generate_transcript, generate_student_id
+from doc_generator import generate_documents, get_mime_type
 from stats import stats
 from universities import select_university
 from utils import generate_name, generate_email, generate_birth_date
@@ -46,6 +47,10 @@ class GeminiVerifier:
             f"[信息] 会话已创建，使用 {self.lib_name}（伪装为: {self.impersonate_target}）"
         )
 
+        # 预热会话（模拟真实浏览器在验证前的页面加载行为）
+        print("[信息] 预热会话中...")
+        warm_session(self.client, program_id=PROGRAM_ID, headers=get_headers())
+
         self.org = None
 
     def __del__(self):
@@ -67,8 +72,9 @@ class GeminiVerifier:
         self._random_delay()
         try:
             headers = get_headers()
-            resp = self.client.request(
-                method, f"{SHEERID_API_URL}{endpoint}", json=body, headers=headers
+            resp = make_request(
+                self.client, method, f"{SHEERID_API_URL}{endpoint}",
+                json=body, headers=headers
             )
             try:
                 parsed = resp.json() if resp.text else {}
@@ -78,10 +84,10 @@ class GeminiVerifier:
         except Exception as e:
             raise Exception(f"请求失败: {e}")
 
-    def _upload_s3(self, url: str, data: bytes) -> bool:
+    def _upload_s3(self, url: str, data: bytes, content_type: str = "image/png") -> bool:
         """上传文件到 S3（强制使用 curl_cffi）"""
         resp = self.client.put(
-            url, data=data, headers={"Content-Type": "image/png"}, timeout=60
+            url, data=data, headers={"Content-Type": content_type}, timeout=60
         )
         if 200 <= resp.status_code < 300:
             return True
@@ -128,7 +134,7 @@ class GeminiVerifier:
             
             # 生成学生信息（使用种子随机数确保一致性）
             first, last = generate_name(rng)
-            self.org = select_university()
+            self.org = select_university(rng=rng)
             email = generate_email(first, last, self.org["domain"], rng)
             dob = generate_birth_date(rng)
 
@@ -139,17 +145,17 @@ class GeminiVerifier:
             print(f"   🔑 验证ID: {self.vid[:20]}...")
             print(f"   📍 起始步骤: {current_step}")
 
-            # 步骤1: 生成文档（使用 verificationId 作为种子确保一致性）
-            doc_type = "transcript" if rng.random() < 0.7 else "id_card"
-            if doc_type == "transcript":
-                print("\n   ▶ 步骤 1/5: 生成学术成绩单...")
-                doc = generate_transcript(first, last, self.org["name"], dob, seed=self.vid)
-                filename = "transcript.png"
-            else:
-                print("\n   ▶ 步骤 1/5: 生成学生证...")
-                doc = generate_student_id(first, last, self.org["name"], seed=self.vid)
-                filename = "student_card.png"
-            print(f"     📄 文件大小: {len(doc) / 1024:.1f} KB")
+            # 步骤1: 根据大学配置生成所有支持的文档
+            doc_types = self.org.get("docs", ["transcript"])
+            template = self.org.get("template", "generic")
+            print(f"\n   ▶ 步骤 1/5: 生成文档（模板: {template}，类型: {doc_types}）...")
+            
+            generated_docs = generate_documents(
+                doc_types, template, first, last,
+                self.org["name"], dob, seed=self.vid
+            )
+            for fname, doc_data in generated_docs:
+                print(f"     📄 {fname}: {len(doc_data) / 1024:.1f} KB")
 
             # 步骤2: 提交信息（如果已过此步骤则跳过）
             if current_step == "collectStudentPersonalInfo":
@@ -224,34 +230,33 @@ class GeminiVerifier:
                     raise RuntimeError(f"SSO 跳过失败: HTTP {sso_status}")
                 current_step = sso_resp.get("currentStep", "")
 
-            # 步骤4: 上传文档
-            print("   ▶ 步骤 4/5: 上传文档...")
-            upload_body = {
-                "files": [
-                    {
-                        "fileName": filename,
-                        "mimeType": "image/png",
-                        "fileSize": len(doc),
-                    }
-                ]
-            }
+            # 步骤4: 批量上传文档（SheerID API 支持 files 数组多文档上传）
+            print(f"   ▶ 步骤 4/5: 上传 {len(generated_docs)} 个文档...")
+            files_meta = []
+            for fname, doc_data in generated_docs:
+                mime = get_mime_type(fname)
+                files_meta.append({
+                    "fileName": fname,
+                    "mimeType": mime,
+                    "fileSize": len(doc_data),
+                })
+
             data, status = self._request(
-                "POST", f"/verification/{self.vid}/step/docUpload", upload_body
+                "POST", f"/verification/{self.vid}/step/docUpload", {"files": files_meta}
             )
 
             # 关键字段为空直接报错
             if not data.get("documents"):
                 raise RuntimeError("未获取到文档上传信息")
             
-            upload_url = data["documents"][0].get("uploadUrl")
-            if not upload_url:
-                raise RuntimeError("未获取到上传URL")
-            
-            if not self._upload_s3(upload_url, doc):
-                stats.record(self.org["name"], False)
-                raise RuntimeError("S3 上传失败")
-
-            print("     ✅ 文档上传成功！")
+            # 逐个上传到对应的 uploadUrl
+            for i, doc_info in enumerate(data["documents"]):
+                upload_url = doc_info.get("uploadUrl")
+                if not upload_url:
+                    raise RuntimeError(f"未获取到第 {i + 1} 个文档的上传URL")
+                mime = doc_info.get("mimeType", "image/png")
+                self._upload_s3(upload_url, generated_docs[i][1], content_type=mime)
+                print(f"     ✅ 文档 {i + 1}/{len(generated_docs)} 上传成功: {generated_docs[i][0]}")
 
             # 步骤5: 完成文档上传
             print("   ▶ 步骤 5/5: 完成上传...")
