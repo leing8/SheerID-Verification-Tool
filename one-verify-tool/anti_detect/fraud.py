@@ -1,63 +1,71 @@
 """
 反检测模块 - 欺诈拒绝处理
 
-SheerID 欺诈规则拒绝的诊断、建议和重试逻辑。
+SheerID 欺诈规则拒绝（fraudRulesReject）的诊断与建议输出。
+
+官方参考：
+- https://developer.sheerid.com/concepts (Errors 章节)
+- https://developer.sheerid.com/rest-api (verification response errorIds)
 """
 
+# 官方文档说明：
+# currentStep="error" + errorIds=["fraudRulesReject"] 是不可恢复错误（non-recoverable）。
+# 官方明确："某些罕见错误不可恢复，需要重新开始验证流程（start a new verification）"。
+# 因此：不应对同一 verificationId 进行任何重试。
 FRAUD_ERROR_HELP = """\
-🚨 检测到欺诈规则拒绝 (fraudRulesReject)
+📋 SheerID 官方文档参考 (fraudRulesReject):
 
-SheerID 的欺诈/风控引擎拒绝了此次尝试。通常由以下风险信号触发:
-- TLS 指纹不匹配 (Python HTTP 库 vs 真实浏览器)
-- 数据中心 / 被标记的 IP 声誉
-- 多次尝试复用设备指纹 / 请求头 / NewRelic 模式
-- 同一 IP 重试速度过快或重复失败
-- 地理位置不匹配 (IP 国家/地区 vs 组织)
+  错误性质: 不可恢复 (non-recoverable)
+  官方处置: 必须重新发起验证 (new verification)，不得对同一
+            verificationId 重试，否则风险评分只会升高。
 
-✅ 建议解决方案 (按优先级):
-  1) 安装 curl_cffi 进行 TLS 伪装:
-     pip install curl_cffi
-  2) 使用住宅代理替代数据中心代理
-  3) 等待 24-48 小时后重试 (风险评分通常会冷却)
-  4) 尝试不同的大学/组织 (部分更严格)
-  5) 检查 IP 是否被拉黑 (必要时更换 IP/提供商)
+可能触发 Fraud Rules Engine 的原因 (来自 SheerID 官方文档):
 
-注意:
-- 使用相同 IP + 指纹立即重试可能导致封禁时间延长
-- 未安装 curl_cffi 时欺诈拒绝率会显著增加
+  [风险信号]
+  1. TLS/JA3 指纹不匹配
+     - Python 默认 HTTP 库 (requests/httpx) 与真实 Chrome 指纹不同
+     - 解决: 使用 curl_cffi 并指定 impersonate="chromeXXX"
+
+  2. IP 声誉 / 数据中心 IP
+     - SheerID ADP（受众数据平台）会分析请求的 IP 地理位置和声誉
+     - 解决: 改用美国住宅代理（residential proxy）
+
+  3. 数字上下文信号异常
+     - SheerID AI 模型会在提交时评估 User-Agent、Accept-Language、
+       Sec-Ch-Ua 等浏览器上下文指纹
+     - 解决: 确保设备指纹与 TLS 版本、UA 版本三者一致
+
+  4. 重复失败 / 速率触发
+     - 同 IP 对同一 program 多次失败会触发渐进式风险规则
+     - 解决: 更换 IP，等待风险评分冷却（官方建议 24-48 小时）
+
+  5. 地理位置不匹配
+     - IP 归属国家/地区与填报的学校或机构不符
+     - 解决: 代理 IP 应与目标大学所在地一致（美国大学 → 美国 IP）
+
+  ✅ 官方最佳实践:
+     - 每次验证必须使用全新 verificationId
+     - 确保 curl_cffi TLS 指纹 ↔ 设备 UA ↔ 请求头版本三一致
+     - 使用住宅代理并验证 IP 归属国为美国
 """
-
-
-def should_retry_fraud(retry_count: int):
-    """判断欺诈拒绝后是否重试，使用指数退避调度: 30s, 60s, 120s，最多3次"""
-    if retry_count < 0:
-        retry_count = 0
-
-    backoff_schedule = [30, 60, 120]
-
-    if retry_count >= len(backoff_schedule):
-        return False, 0
-
-    return True, backoff_schedule[retry_count]
 
 
 def handle_fraud_rejection(
     *,
-    retry_count: int = 0,
     error_payload=None,
     message: str = None,
-):
-    """打印欺诈拒绝横幅 + 可操作建议，并返回重试指导
+) -> None:
+    """输出 fraudRulesReject 诊断横幅与官方文档对齐的解决建议。
 
     Args:
-        retry_count: 已重试次数 (0开始)
-        error_payload: API 错误 JSON 负载 (可选)
-        message: 人类可读的上下文信息 (可选)
+        error_payload: API 错误 JSON 负载（可选），用于提取关键字段
+        message:       人类可读的上下文信息（可选）
 
-    Returns:
-        (should_retry, delay_seconds)
+    Notes:
+        fraudRulesReject 是 SheerID 官方定义的不可恢复错误。
+        此函数仅负责诊断输出，不返回重试指导。
+        调用方应放弃当前 verificationId，重新发起新验证。
     """
-    # ANSI 颜色 (无外部依赖，终端不支持 ANSI 也可正常显示)
     red = "\x1b[31m"
     yellow = "\x1b[33m"
     cyan = "\x1b[36m"
@@ -69,51 +77,34 @@ def handle_fraud_rejection(
             "+--------------------------------------------------------------+",
             "|                  !!! 欺诈检测触发 !!!                    |",
             "|              SheerID 返回 fraudRulesReject                 |",
+            "|         此为不可恢复错误，当前验证已终止                  |",
             "+--------------------------------------------------------------+",
         ]
     )
 
     print(f"\n{red}{bold}{banner}{reset}")
-    print(f"{yellow}❌ 验证被 SheerID 欺诈规则拦截{reset}")
+    print(f"{yellow}❌ 验证被 SheerID Fraud Rules Engine 拦截{reset}")
 
     if message:
         print(f"{cyan}🧾 上下文:{reset} {message}")
 
-    # 尽力提取有用的错误字段
+    # 提取 API 返回的关键错误字段
     if isinstance(error_payload, dict) and error_payload:
-        interesting_keys = [
-            "code",
-            "errorCode",
-            "message",
-            "detail",
-            "details",
-            "error",
-            "errors",
-        ]
-        extracted = {}
-        for k in interesting_keys:
-            if k in error_payload and error_payload.get(k) not in (None, ""):
-                extracted[k] = error_payload.get(k)
-
+        interesting_keys = ["errorIds", "code", "errorCode", "message", "detail"]
+        extracted = {
+            k: error_payload[k]
+            for k in interesting_keys
+            if k in error_payload and error_payload[k] not in (None, "", [])
+        }
         if extracted:
-            # 保持简洁，避免输出过大的负载
             print(f"{cyan}🔎 SheerID 错误负载 (关键字段):{reset}")
             for k, v in extracted.items():
                 v_str = str(v)
-                if len(v_str) > 400:
-                    v_str = v_str[:400] + "..."
+                if len(v_str) > 300:
+                    v_str = v_str[:300] + "..."
                 print(f"  - {k}: {v_str}")
 
     print("\n" + "=" * 62)
     print(FRAUD_ERROR_HELP)
     print("=" * 62)
-
-    should_retry, delay_seconds = should_retry_fraud(retry_count)
-    if should_retry:
-        print(f"{yellow}⏳ 建议重试:{reset} 第 {retry_count + 1}/3 次，{delay_seconds}秒后")
-        print(f"{yellow}💡 提示:{reset} 重试前建议更换 IP/指纹，避免快速重试")
-    else:
-        print(f"{red}🛑 达到最大重试次数{reset}，请勿继续发送请求")
-        print(f"{yellow}✅ 最佳下一步:{reset} 等待 24-48 小时并更换 IP/指纹")
-
-    return should_retry, delay_seconds
+    print(f"{red}🛑 请勿重试当前 verificationId — 重新发起新验证{reset}")

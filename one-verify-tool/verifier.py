@@ -216,19 +216,18 @@ class GeminiVerifier:
 
                 if data.get("currentStep") == "error":
                     error_ids = data.get("errorIds", [])
-                    # 检查欺诈拒绝
+                    # fraudRulesReject 是 SheerID 官方定义的不可恢复错误，
+                    # 不得对同一 verificationId 重试。
                     if "fraudRulesReject" in str(error_ids):
                         from anti_detect import handle_fraud_rejection
                         handle_fraud_rejection(
-                            retry_count=0,
                             error_payload=data,
-                            message=f"University: {self.org['name']}",
+                            message=f"Stage: collectStudentPersonalInfo | University: {self.org['name']}",
                         )
                     stats.record(self.org["name"], False)
                     return {
                         "success": False,
                         "error": f"Error: {error_ids}",
-                        "is_fraud_reject": "fraudRulesReject" in str(error_ids),
                     }
 
                 print(f"     📍 当前步骤: {data.get('currentStep')}")
@@ -308,11 +307,16 @@ class GeminiVerifier:
             elif final_step in ["rejected", "error"]:
                 stats.record(self.org["name"], False)
                 error_ids = data.get("errorIds", [])
+                # fraudRulesReject 可能在文档提交后返回，同样为不可恢复错误
+                if "fraudRulesReject" in str(error_ids):
+                    from anti_detect import handle_fraud_rejection
+                    handle_fraud_rejection(
+                        error_payload=data,
+                        message=f"Stage: completeDocUpload | University: {self.org['name']}",
+                    )
                 return {
                     "success": False,
-                    "error": f"被拒绝: {error_ids}"
-                    if error_ids
-                    else "文档被拒绝",
+                    "error": f"被拒绝: {error_ids}" if error_ids else "文档被拒绝",
                 }
             else:
                 return {
