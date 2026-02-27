@@ -8,18 +8,13 @@ import sys
 from pathlib import Path
 from typing import Dict, Optional, Tuple
 
-# 添加 device-fingerprint 模块路径
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "device-fingerprint"))
+# 添加 device_fingerprint 模块路径
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 try:
     from device_fingerprint import DeviceIdentityFactory
-    HAS_DEVICE_FINGERPRINT = True
 except ImportError:
-    HAS_DEVICE_FINGERPRINT = False
-
-try:
-    import httpx
-except ImportError:
-    print("❌ 错误: 需要 httpx，请安装: pip install httpx")
+    print("❌ 致命错误: device_fingerprint 模块未找到")
+    print("请确保 device_fingerprint/ 目录与 one-verify-tool/ 同级")
     sys.exit(1)
 
 from config import PROGRAM_ID, SHEERID_API_URL
@@ -33,21 +28,6 @@ from generators import (
 from stats import stats
 from universities import select_university
 
-# 导入反检测模块
-try:
-    from anti_detect import (
-        create_session,
-        handle_fraud_rejection,
-        should_retry_fraud,
-    )
-
-    HAS_ANTI_DETECT = True
-    print("[信息] 反检测模块已加载")
-except ImportError:
-    HAS_ANTI_DETECT = False
-    print("[警告] 未找到 anti_detect 模块，使用基础请求头")
-    print("[警告] 没有反检测模块检测风险极高!")
-
 
 class GeminiVerifier:
     """增强版 Gemini 学生验证器"""
@@ -56,28 +36,25 @@ class GeminiVerifier:
         self.url = url
         self.vid = self._parse_id(url)
 
-        # 使用 DeviceIdentity 工厂生成一致的设备身份
-        if HAS_DEVICE_FINGERPRINT and self.vid:
-            factory = DeviceIdentityFactory()
-            self.identity = factory.create(self.vid, device_type="desktop")
-            print(f"[信息] 设备身份: {self.identity.device.brand} {self.identity.device.model}")
-        else:
-            self.identity = None
+        if not self.vid:
+            print("❌ 无法解析 verificationId")
+            sys.exit(1)
 
-        # 使用增强版反检测会话
-        if HAS_ANTI_DETECT:
-            self.client, self.lib_name, self.impersonate_target = create_session(proxy)
-            print(
-                f"[信息] 会话已创建，使用 {self.lib_name} (模拟: {self.impersonate_target})"
-            )
-        else:
-            proxy_url = None
-            if proxy:
-                if not proxy.startswith("http"):
-                    proxy = f"http://{proxy}"
-                proxy_url = proxy
-            self.client = httpx.Client(timeout=30, proxy=proxy_url)
-            self.lib_name = "httpx"
+        # 1. 创建 DeviceIdentity
+        factory = DeviceIdentityFactory()
+        self.identity = factory.create(self.vid, device_type="desktop")
+        print(f"[信息] 设备身份: {self.identity.device.brand} {self.identity.device.model}")
+
+        # 2. 基于 DeviceIdentity 的 Chrome 版本创建 TLS 会话
+        #    确保 JA3/JA4 指纹 ↔ HTTP 请求头 版本一致
+        chrome_major = self.identity.chrome_version.split(".")[0]
+        impersonate_ver = f"chrome{chrome_major}"
+
+        from anti_detect import create_session
+        self.client, self.lib_name, self.impersonate_target = create_session(
+            proxy, impersonate=impersonate_ver
+        )
+        print(f"[信息] TLS 模拟: {self.impersonate_target} (JA3/JA4 = Chrome {chrome_major})")
 
         self.org = None
 
@@ -96,10 +73,7 @@ class GeminiVerifier:
         random_delay()
         try:
             # 使用 DeviceIdentity 生成一致请求头
-            if self.identity:
-                headers = self.identity.get_headers(for_sheerid=True)
-            else:
-                headers = {"Content-Type": "application/json"}
+            headers = self.identity.get_headers(for_sheerid=True)
             resp = self.client.request(
                 method, f"{SHEERID_API_URL}{endpoint}", json=body, headers=headers
             )
@@ -232,7 +206,7 @@ class GeminiVerifier:
                         "idExtended": self.org["idExtended"],
                         "name": self.org["name"],
                     },
-                    "deviceFingerprintHash": self.identity.fingerprint_hash if self.identity else "",
+                    "deviceFingerprintHash": self.identity.fingerprint_hash,
                     "locale": "en-US",
                     "metadata": {
                         "marketConsentValue": False,

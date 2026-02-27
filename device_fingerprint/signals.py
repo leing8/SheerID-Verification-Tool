@@ -12,12 +12,13 @@ import struct
 # 用于 HMAC 的固定密钥 (可配置)
 _HMAC_KEY = b"device-fingerprint-salt-v1"
 
-# Chrome 版本 (保持较新)
+# Chrome 版本 — 必须与 curl_cffi 支持的模拟版本对应
+# curl_cffi impersonate: chrome131, chrome130, chrome124, chrome120
 CHROME_VERSIONS = [
     "131.0.0.0",
     "130.0.0.0",
-    "129.0.0.0",
-    "128.0.0.0",
+    "124.0.0.0",
+    "120.0.0.0",
 ]
 
 
