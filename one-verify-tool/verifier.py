@@ -2,7 +2,6 @@
 GeminiVerifier - 增强版 Gemini 学生验证器
 """
 
-import random
 import re
 import sys
 from pathlib import Path
@@ -18,14 +17,11 @@ except ImportError:
     sys.exit(1)
 
 from config import PROGRAM_ID, SHEERID_API_URL
-from documents import generate_student_id, generate_transcript
-from generators import (
-    generate_birth_date,
-    generate_email,
-    generate_name,
-)
 from anti_detect.session import random_delay
-from universities import select_university
+
+# common/student_factory: 确定性学生信息 + 文档生成
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "common"))
+from student_factory import StudentInfoFactory
 
 
 class GeminiVerifier:
@@ -146,30 +142,29 @@ class GeminiVerifier:
                 check_data.get("currentStep", "") if check_status == 200 else ""
             )
 
-            # 生成信息
-            first, last = generate_name()
-            self.org = select_university()
-            email = generate_email(first, last, self.org["domain"])
-            dob = generate_birth_date()
+            # 生成信息（基于 verificationId 确定性生成）
+            factory = StudentInfoFactory()
+            student_info = factory.create(self.vid)
+            first = student_info.first_name
+            last  = student_info.last_name
+            self.org = student_info.university
+            email = student_info.email
+            dob   = student_info.birth_date
 
             print(f"\n   🎓 学生: {first} {last}")
             print(f"   📧 邮箱: {email}")
             print(f"   🏫 学校: {self.org['name']}")
+            print(f"   📚 专业: {student_info.program}")
             print(f"   🎂 出生日期: {dob}")
             print(f"   🔑 ID: {self.vid[:20]}...")
             print(f"   📍 当前步骤: {current_step}")
 
-            # 步骤1: 生成文档
-            doc_type = "transcript" if random.random() < 0.7 else "id_card"
-            if doc_type == "transcript":
-                print("\n   ▶ 步骤 1/3: 生成学术成绩单...")
-                doc = generate_transcript(first, last, self.org["name"], dob)
-                filename = "transcript.png"
-            else:
-                print("\n   ▶ 步骤 1/3: 生成学生证...")
-                doc = generate_student_id(first, last, self.org["name"])
-                filename = "student_card.png"
-            print(f"     📄 大小: {len(doc) / 1024:.1f} KB")
+            # 步骤1: 生成文档（工厂已按 vid 确定性选好文档类型和数量）
+            print(f"\n   ▶ 步骤 1/3: 生成文档 ({len(student_info.documents)} 份)...")
+            for doc_name, doc_bytes in student_info.documents:
+                print(f"     📄 {doc_name}: {len(doc_bytes) / 1024:.1f} KB")
+            # 取第一份文档用于上传
+            filename, doc = student_info.documents[0]
 
             # 模拟用户填写表单 (人类在这里会花 2-5 秒)
             random_delay(2000, 5000)
