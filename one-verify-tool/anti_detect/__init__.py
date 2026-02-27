@@ -6,8 +6,8 @@ SheerID 验证工具 - 反检测模块
 - 欺诈拒绝处理与重试
 - 会话创建与预热
 
-注意: 指纹和请求头生成已迁移到 device_fingerprint 模块。
-注意: 代理检测功能已迁移到 proxy_checker 公共模块。
+注意: 指纹和请求头生成已迁移到 common/device_fingerprint 模块。
+注意: 代理检测功能已迁移到 common/proxy_checker 公共模块。
 
 用法:
     from anti_detect import create_session, handle_fraud_rejection, should_retry_fraud

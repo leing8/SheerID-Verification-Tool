@@ -8,13 +8,13 @@ import sys
 from pathlib import Path
 from typing import Dict, Optional, Tuple
 
-# 添加 device_fingerprint 模块路径
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+# 添加 common 公共模块路径 (device_fingerprint, proxy_checker)
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "common"))
 try:
     from device_fingerprint import DeviceIdentityFactory
 except ImportError:
     print("❌ 致命错误: device_fingerprint 模块未找到")
-    print("请确保 device_fingerprint/ 目录与 one-verify-tool/ 同级")
+    print("请确保 common/device_fingerprint/ 目录存在")
     sys.exit(1)
 
 from config import PROGRAM_ID, SHEERID_API_URL
