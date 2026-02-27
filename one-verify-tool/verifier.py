@@ -23,8 +23,8 @@ from generators import (
     generate_birth_date,
     generate_email,
     generate_name,
-    random_delay,
 )
+from anti_detect.session import random_delay
 from stats import stats
 from universities import select_university
 
@@ -51,10 +51,25 @@ class GeminiVerifier:
         impersonate_ver = f"chrome{chrome_major}"
 
         from anti_detect import create_session
+        from anti_detect.session import warm_session
+        from proxy_checker import ProxyChecker
+
         self.client, self.lib_name, self.impersonate_target = create_session(
             proxy, impersonate=impersonate_ver
         )
         print(f"[信息] TLS 模拟: {self.impersonate_target} (JA3/JA4 = Chrome {chrome_major})")
+
+        # 3. 异步代理 IP 地理检测 (不阻塞主线程)
+        if proxy:
+            ProxyChecker().check_async(self.client, expected_country="US")
+
+        # 4. 会话预热 (模拟真实浏览器页面加载)
+        warm_session(
+            self.client,
+            program_id=PROGRAM_ID,
+            headers=self.identity.get_headers(for_sheerid=True),
+        )
+        print("[信息] 会话已预热 (config → program → organization)")
 
         self.org = None
 
@@ -86,54 +101,18 @@ class GeminiVerifier:
             raise Exception(f"请求失败: {e}")
 
     def _upload_s3(self, url: str, data: bytes) -> bool:
-        # 不同 HTTP 库接受不同的参数名，尝试多种方式以最大化兼容性 (curl_cffi, httpx, requests)
-        attempts = []
-        # 第一种: httpx 签名
-        attempts.append(
-            lambda: self.client.put(
-                url, content=data, headers={"Content-Type": "image/png"}, timeout=60
-            )
-        )
-        # 第二种: requests 签名
-        attempts.append(
-            lambda: self.client.put(
+        """S3 文档上传 (curl_cffi)"""
+        try:
+            resp = self.client.put(
                 url, data=data, headers={"Content-Type": "image/png"}, timeout=60
             )
-        )
-        # 第三种: 通用 request 方法
-        attempts.append(
-            lambda: self.client.request(
-                "PUT", url, data=data, headers={"Content-Type": "image/png"}, timeout=60
-            )
-        )
-
-        last_exc = None
-        for fn in attempts:
-            try:
-                resp = fn()
-                if hasattr(resp, "status_code"):
-                    if 200 <= resp.status_code < 300:
-                        return True
-                    try:
-                        body = resp.json()
-                    except Exception:
-                        body = getattr(resp, "text", str(resp))
-                    print(f"     ❗ S3 上传失败: HTTP {resp.status_code} | {body}")
-                    return False
-                else:
-                    # 响应非标准对象，有值则视为成功
-                    if resp:
-                        return True
-                    return False
-            except TypeError as e:
-                last_exc = e
-                continue
-            except Exception as e:
-                last_exc = e
-                continue
-
-        print(f"     ❗ S3 上传失败，最后错误: {last_exc}")
-        return False
+            if 200 <= resp.status_code < 300:
+                return True
+            print(f"     ❗ S3 上传失败: HTTP {resp.status_code}")
+            return False
+        except Exception as e:
+            print(f"     ❗ S3 上传失败: {e}")
+            return False
 
     def check_link(self) -> Dict:
         """检查验证链接是否有效"""
@@ -192,6 +171,9 @@ class GeminiVerifier:
                 filename = "student_card.png"
             print(f"     📄 大小: {len(doc) / 1024:.1f} KB")
 
+            # 模拟用户填写表单 (人类在这里会花 2-5 秒)
+            random_delay(2000, 5000)
+
             # 步骤2: 提交信息 (已过此步骤则跳过)
             if current_step == "collectStudentPersonalInfo":
                 print("   ▶ 步骤 2/3: 提交学生信息...")
@@ -236,12 +218,12 @@ class GeminiVerifier:
                     error_ids = data.get("errorIds", [])
                     # 检查欺诈拒绝
                     if "fraudRulesReject" in str(error_ids):
-                        if HAS_ANTI_DETECT:
-                            handle_fraud_rejection(
-                                retry_count=0,
-                                error_payload=data,
-                                message=f"University: {self.org['name']}",
-                            )
+                        from anti_detect import handle_fraud_rejection
+                        handle_fraud_rejection(
+                            retry_count=0,
+                            error_payload=data,
+                            message=f"University: {self.org['name']}",
+                        )
                     stats.record(self.org["name"], False)
                     return {
                         "success": False,
@@ -261,7 +243,11 @@ class GeminiVerifier:
             # 步骤3: 跳过 SSO (如需要)
             if current_step in ["sso", "collectStudentPersonalInfo"]:
                 print("   ▶ 步骤 3/4: 跳过 SSO...")
+                random_delay(500, 1500)  # 短暂停顿，模拟点击“跳过”
                 self._request("DELETE", f"/verification/{self.vid}/step/sso")
+
+            # 模拟用户选择文件 (1.5-4 秒)
+            random_delay(1500, 4000)
 
             # 步骤4: 上传文档
             print("   ▶ 步骤 4/5: 上传文档...")
@@ -289,7 +275,10 @@ class GeminiVerifier:
 
             print("     ✅ 文档已上传!")
 
-            # 步骤5: 完成文档上传
+            # 模拟用户确认并点击提交 (1-2 秒)
+            random_delay(1000, 2000)
+
+            # 步骤5: 完成上传
             print("   ▶ 步骤 5/5: 完成上传...")
             data, status = self._request(
                 "POST", f"/verification/{self.vid}/step/completeDocUpload"
