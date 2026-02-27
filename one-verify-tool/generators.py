@@ -6,10 +6,7 @@
 
 
 import random
-import time
 from typing import Tuple
-
-from config import MIN_DELAY, MAX_DELAY
 
 # ============ 姓名数据 ============
 FIRST_NAMES = [
@@ -139,11 +136,6 @@ LAST_NAMES = [
     "Parker",
     "Edwards",
 ]
-
-
-def random_delay():
-    time.sleep(random.randint(MIN_DELAY, MAX_DELAY) / 1000)
-
 
 
 def generate_name() -> Tuple[str, str]:

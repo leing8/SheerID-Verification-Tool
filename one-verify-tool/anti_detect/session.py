@@ -10,7 +10,7 @@ curl_cffi 不可用时退出程序。
     - TLS 扩展列表及顺序 (JA4 依据此排序计算哈希)
     - 椭圆曲线、签名算法
     - ALPS/GREASE 扩展
-    
+
     因此 JA3 和 JA4 哈希值均与真实 Chrome 一致，
     无需在 Python 层做额外处理。
 """
@@ -18,13 +18,6 @@ curl_cffi 不可用时退出程序。
 import random
 import sys
 import time
-
-from .constants import (
-    CHROME_VERSIONS,
-    DEFAULT_IMPERSONATE,
-    IMPERSONATE_OPTIONS,
-    USER_AGENTS,
-)
 
 # 强制检查 curl_cffi
 try:
@@ -58,22 +51,6 @@ def random_delay(min_ms: int = 300, max_ms: int = 1200):
     time.sleep(delay)
 
 
-def get_random_impersonate(browser_type: str = None) -> str:
-    """
-    随机获取浏览器模拟标识
-
-    Args:
-        browser_type: 'chrome'/'edge'/'safari'，为 None 则按权重随机选择
-    """
-    if browser_type and browser_type in IMPERSONATE_OPTIONS:
-        return random.choice(IMPERSONATE_OPTIONS[browser_type])
-
-    # Chrome 权重最高（最常见、最安全）
-    weights = [0.75, 0.15, 0.10]
-    browser = random.choices(["chrome", "edge", "safari"], weights=weights)[0]
-    return random.choice(IMPERSONATE_OPTIONS[browser])
-
-
 def create_session(proxy: str = None, impersonate: str = None):
     """
     创建 curl_cffi HTTP 会话，强制使用 Chrome TLS 模拟。
@@ -85,7 +62,7 @@ def create_session(proxy: str = None, impersonate: str = None):
     - ALPS/GREASE: Chrome 特有的 TLS 扩展
 
     Args:
-        proxy: 代理 URL
+        proxy:       代理 URL
         impersonate: Chrome 模拟版本 (如 "chrome131")，
                      应与 DeviceIdentity 的 Chrome 版本一致
 
@@ -105,8 +82,8 @@ def create_session(proxy: str = None, impersonate: str = None):
             print("[警告] ⚠️  检测到数据中心代理! SheerID 可能拒绝请求")
             print("[警告]    强烈建议使用住宅代理")
 
-    # 使用传入的模拟版本或默认值
-    imp_version = impersonate or DEFAULT_IMPERSONATE
+    # 使用传入的模拟版本，回退到 curl_cffi 默认 Chrome
+    imp_version = impersonate or "chrome131"
 
     try:
         if proxies:
@@ -122,117 +99,75 @@ def create_session(proxy: str = None, impersonate: str = None):
 
     except Exception as e:
         print(f"\n❌ 致命错误: curl_cffi 模拟版本 '{imp_version}' 失败: {e}")
-        print(f"请更新 curl_cffi: pip install --upgrade curl_cffi")
+        print("请更新 curl_cffi: pip install --upgrade curl_cffi")
         sys.exit(1)
 
 
-def print_anti_detect_info():
-    """打印反检测配置信息"""
-    session, lib, imp = create_session()
-    print(f"\n{'=' * 50}")
-    print(f"反检测配置信息")
-    print(f"{'=' * 50}")
-    print(f"  HTTP 库: {lib} (强制)")
-    print(f"  TLS 模拟: {imp}")
-    print(f"  JA3/JA4: 匹配真实 Chrome")
-    print(f"  User-Agent: {len(USER_AGENTS)} 个变体")
-    print(f"  Chrome 版本: {len(CHROME_VERSIONS)} 个可用")
-    print(f"\n  ✅ TLS 指纹: 已伪装为 {imp}")
-    print(f"  ✅ 检测风险: 低")
-    print(f"{'=' * 50}\n")
-
-    # 清理资源
-    if hasattr(session, "close"):
-        session.close()
-
-
-def make_request(session, method: str, url: str, impersonate: str = None, **kwargs):
+def warm_session(
+    session,
+    program_id: str = None,
+    verification_id: str = None,
+    headers: dict = None,
+):
     """
-    发送 HTTP 请求，为 curl_cffi 自动应用模拟参数
+    预热会话，复现真实 Chrome 加载 SheerID 验证页面时的 GET 请求序列。
+
+    基于 SheerID 官方 API Quickstart 文档的推荐请求顺序:
+      1. GET /program/{programId}/theme   — 官方第一个推荐的 GET，获取程序主题
+      2. GET /verification/{verificationId} — 浏览器加载时读取当前验证状态
+      3. GET /organization/search          — 用户聚焦到学校输入框时触发的搜索
+
+    ADP (受众数据平台) 会将"没有背景 GET 请求直接 POST 提交"标记为高风险。
+    此函数通过复现上述序列建立正常的请求上下文。
 
     Args:
-        session: create_session() 返回的 HTTP 会话
-        method: HTTP 方法
-        url: 请求 URL
-        impersonate: Chrome 模拟版本 (仅 curl_cffi 有效)
-        **kwargs: 其他参数
+        session:         create_session() 返回的 HTTP 会话
+        program_id:      SheerID 项目 ID
+        verification_id: 当前验证 ID（用于复现 GET /verification/{id}）
+        headers:         DeviceIdentity 生成的完整请求头
     """
-    imp = impersonate or DEFAULT_IMPERSONATE
-    try:
-        return session.request(method, url, impersonate=imp, **kwargs)
-    except TypeError:
-        return session.request(method, url, **kwargs)
-
-
-def warm_session(session, program_id: str = None, headers: dict = None):
-    """
-    预热会话，模拟真实浏览器页面加载行为
-
-    Args:
-        session: create_session() 返回的 HTTP 会话
-        program_id: SheerID 项目 ID (可选)
-        headers: 请求头 (可选)
-    """
-    base_url = "https://services.sheerid.com"
+    base_url = "https://services.sheerid.com/rest/v2"
     hdrs = headers or {"Content-Type": "application/json"}
-
-    try:
-        # 第1步: 加载 API 配置（模拟浏览器页面加载）
-        session.get(f"{base_url}/rest/v2/config", headers=hdrs, timeout=10)
-        random_delay(500, 1000)
-    except Exception:
-        pass
 
     if program_id:
         try:
-            # 第2步: 加载项目信息
+            # 步骤 1: 获取程序主题 (官方文档推荐的首个 GET 请求)
+            # 参考: https://developer.sheerid.com/api-quickstart#retrieve-theme
             session.get(
-                f"{base_url}/rest/v2/program/{program_id}", headers=hdrs, timeout=10
+                f"{base_url}/program/{program_id}/theme",
+                headers=hdrs,
+                timeout=10,
             )
-            random_delay(300, 700)
+            random_delay(600, 1200)
+        except Exception:
+            pass
+
+    if verification_id:
+        try:
+            # 步骤 2: 读取当前验证状态 (浏览器页面加载时必然发生)
+            # 参考: https://developer.sheerid.com/api-quickstart#retrieve-verification-segment
+            session.get(
+                f"{base_url}/verification/{verification_id}",
+                headers=hdrs,
+                timeout=10,
+            )
+            random_delay(400, 900)
         except Exception:
             pass
 
     try:
-        # 第3步: 查询组织端点（以空关键词搜索）
+        # 步骤 3: 组织搜索 (模拟用户点击/聚焦学校输入框时的空搜索)
         params = {"country": "US", "term": ""}
         if program_id:
             params["programId"] = program_id
         session.get(
-            f"{base_url}/rest/v2/organization/search",
+            f"{base_url}/organization/search",
             params=params,
             headers=hdrs,
             timeout=10,
         )
-        random_delay(200, 500)
+        random_delay(300, 700)
     except Exception:
         pass
 
     return session
-
-
-def generate_student_email(
-    first_name: str, last_name: str, university: dict = None
-) -> str:
-    """生成与大学域名匹配的学生邮箱"""
-    first = first_name.lower().strip()
-    last = last_name.lower().strip()
-
-    domain = university.get("domain", "") if university else ""
-
-    if not domain:
-        # 通用邮箱提供商
-        domains = ["gmail.com", "outlook.com", "yahoo.com", "icloud.com"]
-        domain = random.choice(domains)
-
-    # 常见大学邮箱格式
-    patterns = [
-        f"{first[0]}{last}@{domain}",
-        f"{first}.{last}@{domain}",
-        f"{first}{last[0]}@{domain}",
-        f"{first}_{last}@{domain}",
-        f"{last}{first[0]}@{domain}",
-        f"{first}{random.randint(1, 99)}@{domain}",
-    ]
-
-    return random.choice(patterns)

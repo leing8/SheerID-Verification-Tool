@@ -17,10 +17,6 @@ SheerID 验证工具 - 反检测模块
 from .fraud import FRAUD_ERROR_HELP, handle_fraud_rejection
 from .session import (
     create_session,
-    generate_student_email,
-    get_random_impersonate,
-    make_request,
-    print_anti_detect_info,
     random_delay,
     warm_session,
 )
@@ -28,12 +24,8 @@ from .session import (
 __all__ = [
     # session
     "random_delay",
-    "get_random_impersonate",
     "create_session",
-    "print_anti_detect_info",
-    "make_request",
     "warm_session",
-    "generate_student_email",
     # fraud
     "FRAUD_ERROR_HELP",
     "handle_fraud_rejection",

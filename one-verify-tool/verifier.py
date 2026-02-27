@@ -63,13 +63,14 @@ class GeminiVerifier:
         if proxy:
             ProxyChecker().check_async(self.client, expected_country="US")
 
-        # 4. 会话预热 (模拟真实浏览器页面加载)
+        # 4. 会话预热 (官方文档序列: theme → verification → org search)
         warm_session(
             self.client,
             program_id=PROGRAM_ID,
+            verification_id=self.vid,
             headers=self.identity.get_headers(for_sheerid=True),
         )
-        print("[信息] 会话已预热 (config → program → organization)")
+        print("[信息] 会话已预热 (theme → verification → organization)")
 
         self.org = None
 
@@ -216,6 +217,9 @@ class GeminiVerifier:
 
                 if data.get("currentStep") == "error":
                     error_ids = data.get("errorIds", [])
+                    system_msg = data.get("systemErrorMessage", "")
+                    if system_msg:
+                        print(f"     ❗ SheerID systemErrorMessage: {system_msg}")
                     # fraudRulesReject 是 SheerID 官方定义的不可恢复错误，
                     # 不得对同一 verificationId 重试。
                     if "fraudRulesReject" in str(error_ids):
@@ -228,6 +232,7 @@ class GeminiVerifier:
                     return {
                         "success": False,
                         "error": f"Error: {error_ids}",
+                        "system_message": system_msg,
                     }
 
                 print(f"     📍 当前步骤: {data.get('currentStep')}")
@@ -307,6 +312,9 @@ class GeminiVerifier:
             elif final_step in ["rejected", "error"]:
                 stats.record(self.org["name"], False)
                 error_ids = data.get("errorIds", [])
+                system_msg = data.get("systemErrorMessage", "")
+                if system_msg:
+                    print(f"     ❗ SheerID systemErrorMessage: {system_msg}")
                 # fraudRulesReject 可能在文档提交后返回，同样为不可恢复错误
                 if "fraudRulesReject" in str(error_ids):
                     from anti_detect import handle_fraud_rejection
@@ -317,6 +325,7 @@ class GeminiVerifier:
                 return {
                     "success": False,
                     "error": f"被拒绝: {error_ids}" if error_ids else "文档被拒绝",
+                    "system_message": system_msg,
                 }
             else:
                 return {
