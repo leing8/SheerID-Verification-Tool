@@ -5,7 +5,16 @@ GeminiVerifier - 增强版 Gemini 学生验证器
 import random
 import re
 import sys
+from pathlib import Path
 from typing import Dict, Optional, Tuple
+
+# 添加 device-fingerprint 模块路径
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "device-fingerprint"))
+try:
+    from device_fingerprint import DeviceIdentityFactory
+    HAS_DEVICE_FINGERPRINT = True
+except ImportError:
+    HAS_DEVICE_FINGERPRINT = False
 
 try:
     import httpx
@@ -18,7 +27,6 @@ from documents import generate_student_id, generate_transcript
 from generators import (
     generate_birth_date,
     generate_email,
-    generate_fingerprint,
     generate_name,
     random_delay,
 )
@@ -29,10 +37,7 @@ from universities import select_university
 try:
     from anti_detect import (
         create_session,
-        get_headers,
-        get_matched_ua_for_impersonate,
         handle_fraud_rejection,
-        make_request,
         should_retry_fraud,
     )
 
@@ -50,7 +55,14 @@ class GeminiVerifier:
     def __init__(self, url: str, proxy: str = None):
         self.url = url
         self.vid = self._parse_id(url)
-        self.fingerprint = generate_fingerprint()
+
+        # 使用 DeviceIdentity 工厂生成一致的设备身份
+        if HAS_DEVICE_FINGERPRINT and self.vid:
+            factory = DeviceIdentityFactory()
+            self.identity = factory.create(self.vid, device_type="desktop")
+            print(f"[信息] 设备身份: {self.identity.device.brand} {self.identity.device.model}")
+        else:
+            self.identity = None
 
         # 使用增强版反检测会话
         if HAS_ANTI_DETECT:
@@ -83,12 +95,11 @@ class GeminiVerifier:
     ) -> Tuple[Dict, int]:
         random_delay()
         try:
-            # 可用时使用反检测请求头
-            headers = (
-                get_headers(for_sheerid=True)
-                if HAS_ANTI_DETECT
-                else {"Content-Type": "application/json"}
-            )
+            # 使用 DeviceIdentity 生成一致请求头
+            if self.identity:
+                headers = self.identity.get_headers(for_sheerid=True)
+            else:
+                headers = {"Content-Type": "application/json"}
             resp = self.client.request(
                 method, f"{SHEERID_API_URL}{endpoint}", json=body, headers=headers
             )
@@ -221,7 +232,7 @@ class GeminiVerifier:
                         "idExtended": self.org["idExtended"],
                         "name": self.org["name"],
                     },
-                    "deviceFingerprintHash": self.fingerprint,
+                    "deviceFingerprintHash": self.identity.fingerprint_hash if self.identity else "",
                     "locale": "en-US",
                     "metadata": {
                         "marketConsentValue": False,

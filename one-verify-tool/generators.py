@@ -1,10 +1,10 @@
 """
 数据生成器
 
-姓名、邮箱、出生日期、浏览器指纹等随机数据生成。
+姓名、邮箱、出生日期等随机数据生成。
 """
 
-import hashlib
+
 import random
 import time
 from typing import Tuple
@@ -144,40 +144,6 @@ LAST_NAMES = [
 def random_delay():
     time.sleep(random.randint(MIN_DELAY, MAX_DELAY) / 1000)
 
-
-def generate_fingerprint() -> str:
-    """生成模拟真实浏览器指纹以规避欺诈检测"""
-    # 常见屏幕分辨率
-    resolutions = [
-        "1920x1080",
-        "1366x768",
-        "1536x864",
-        "1440x900",
-        "1280x720",
-        "2560x1440",
-    ]
-    # 常见时区
-    timezones = [-8, -7, -6, -5, -4, 0, 1, 2, 3, 5.5, 8, 9, 10]
-    # 常见语言
-    languages = ["en-US", "en-GB", "en-CA", "en-AU", "es-ES", "fr-FR", "de-DE", "pt-BR"]
-    # 常见平台
-    platforms = ["Win32", "MacIntel", "Linux x86_64"]
-    # 浏览器厂商
-    vendors = ["Google Inc.", "Apple Computer, Inc.", ""]
-
-    components = [
-        str(int(time.time() * 1000)),
-        str(random.random()),
-        random.choice(resolutions),
-        str(random.choice(timezones)),
-        random.choice(languages),
-        random.choice(platforms),
-        random.choice(vendors),
-        str(random.randint(1, 16)),  # CPU 核心数
-        str(random.randint(2, 32)),  # 设备内存(GB)
-        str(random.randint(0, 1)),   # 触屏支持
-    ]
-    return hashlib.md5("|".join(components).encode()).hexdigest()
 
 
 def generate_name() -> Tuple[str, str]:

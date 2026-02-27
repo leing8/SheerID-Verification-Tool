@@ -2,7 +2,7 @@
 反检测模块 - 会话管理
 
 HTTP 会话创建（优先级: curl_cffi > cloudscraper > httpx > requests）、
-会话预热、学生邮箱生成、反检测信息打印。
+会话预热、学生邮箱生成。
 """
 
 import random
@@ -12,11 +12,8 @@ from .constants import (
     CHROME_VERSIONS,
     DEFAULT_IMPERSONATE,
     IMPERSONATE_OPTIONS,
-    RESOLUTIONS,
     USER_AGENTS,
 )
-from .headers import get_headers
-from .proxy import check_proxy_type, validate_proxy
 
 
 def random_delay(min_ms: int = 300, max_ms: int = 1200):
@@ -67,6 +64,8 @@ def create_session(proxy: str = None, impersonate: str = None):
     Returns:
         tuple: (session, 库名称, 模拟版本)
     """
+    from .proxy import check_proxy_type, validate_proxy
+
     # 验证并格式化代理
     proxy = validate_proxy(proxy)
     proxies = None
@@ -99,7 +98,7 @@ def create_session(proxy: str = None, impersonate: str = None):
             print(f"[反检测]    TLS 指纹将匹配真实 Chrome 浏览器")
             return session, "curl_cffi", imp_version
 
-        except Exception as e:
+        except Exception:
             # 版本不支持时尝试回退版本
             print(f"[警告] 模拟版本 '{imp_version}' 不支持，尝试回退版本...")
 
@@ -157,7 +156,6 @@ def create_session(proxy: str = None, impersonate: str = None):
         proxy_url = proxies.get("all://") if proxies else None
         session = httpx.Client(timeout=30, proxy=proxy_url)
         print("[反检测] ⚠️  使用 httpx (TLS 指纹可被检测!)")
-        print("[反检测]    预期成功率: ~20-40% (对比 curl_cffi 的 60-80%)")
         return session, "httpx", None
     except ImportError:
         pass
@@ -169,7 +167,6 @@ def create_session(proxy: str = None, impersonate: str = None):
     if proxies:
         session.proxies = proxies
     print("[反检测] ❌ 使用 requests (检测风险极高!)")
-    print("[反检测]    预期成功率: ~5-20%")
     print("[反检测]    请执行: pip install curl_cffi")
     return session, "requests", None
 
@@ -183,7 +180,6 @@ def print_anti_detect_info():
     print(f"  HTTP 库: {lib}")
     print(f"  模拟版本: {imp or '无 (可被检测!)'}")
     print(f"  User-Agent: {len(USER_AGENTS)} 个变体")
-    print(f"  分辨率: {len(RESOLUTIONS)} 个变体")
     print(f"  Chrome 版本: {len(CHROME_VERSIONS)} 个可用")
 
     if lib == "curl_cffi" and imp:
@@ -240,7 +236,7 @@ def warm_session(session, program_id: str = None, headers: dict = None):
         headers: 请求头 (可选)
     """
     base_url = "https://services.sheerid.com"
-    hdrs = headers or get_headers(for_sheerid=True)
+    hdrs = headers or {"Content-Type": "application/json"}
 
     try:
         # 第1步: 加载 API 配置（模拟浏览器页面加载）
