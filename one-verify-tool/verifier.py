@@ -25,7 +25,6 @@ from generators import (
     generate_name,
 )
 from anti_detect.session import random_delay
-from stats import stats
 from universities import select_university
 
 
@@ -207,7 +206,6 @@ class GeminiVerifier:
                 )
 
                 if status != 200:
-                    stats.record(self.org["name"], False)
                     print(f"     ❗ 提交失败: HTTP {status}")
                     print(f"     ❗ 响应内容: {data}")
                     return {
@@ -228,7 +226,6 @@ class GeminiVerifier:
                             error_payload=data,
                             message=f"Stage: collectStudentPersonalInfo | University: {self.org['name']}",
                         )
-                    stats.record(self.org["name"], False)
                     return {
                         "success": False,
                         "error": f"Error: {error_ids}",
@@ -269,12 +266,10 @@ class GeminiVerifier:
             )
 
             if not data.get("documents"):
-                stats.record(self.org["name"], False)
                 return {"success": False, "error": "没有上传 URL"}
 
             upload_url = data["documents"][0].get("uploadUrl")
             if not self._upload_s3(upload_url, doc):
-                stats.record(self.org["name"], False)
                 return {"success": False, "error": "上传失败"}
 
             print("     ✅ 文档已上传!")
@@ -291,7 +286,6 @@ class GeminiVerifier:
             print(f"     📍 最终步骤: {final_step}")
 
             if final_step == "success":
-                stats.record(self.org["name"], True)
                 return {
                     "success": True,
                     "message": "已立即验证! 无需审核。",
@@ -310,7 +304,6 @@ class GeminiVerifier:
                     "school": self.org["name"],
                 }
             elif final_step in ["rejected", "error"]:
-                stats.record(self.org["name"], False)
                 error_ids = data.get("errorIds", [])
                 system_msg = data.get("systemErrorMessage", "")
                 if system_msg:
@@ -338,6 +331,4 @@ class GeminiVerifier:
                 }
 
         except Exception as e:
-            if self.org:
-                stats.record(self.org["name"], False)
             return {"success": False, "error": str(e)}

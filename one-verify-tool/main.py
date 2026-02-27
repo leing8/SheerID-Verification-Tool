@@ -7,9 +7,7 @@ Google 已将 Gemini 学生验证限制为仅限美国新注册用户
 其他国家用户可能遇到较高的失败率
 
 增强功能:
-- 按组织追踪成功率
 - 加权大学选择 (美国院校优先)
-- 指数退避重试
 - 反速率限制
 - Chrome TLS 模拟反检测
 
@@ -22,7 +20,6 @@ Author: ThanhNguyxn
 
 import argparse
 
-from stats import stats
 from verifier import GeminiVerifier
 
 
@@ -117,7 +114,6 @@ def main():
         print(f"   ❌ 失败: {result.get('error')}")
     print("─" * 58)
 
-    stats.print_stats()
 
 
 if __name__ == "__main__":

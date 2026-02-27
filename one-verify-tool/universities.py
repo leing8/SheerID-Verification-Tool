@@ -5,7 +5,6 @@
 import random
 from typing import Dict
 
-from stats import stats
 
 # ============ 大学列表与权重 ============
 # 注意: 2026年1月起，Gemini 学生新注册仅限美国
@@ -211,11 +210,8 @@ UNIVERSITIES = [
 
 
 def select_university() -> Dict:
-    """基于成功率的加权随机选择"""
-    weights = []
-    for uni in UNIVERSITIES:
-        weight = uni["weight"] * (stats.get_rate(uni["name"]) / 50)
-        weights.append(max(1, weight))
+    """基于静态权重的随机大学选择"""
+    weights = [uni["weight"] for uni in UNIVERSITIES]
 
     total = sum(weights)
     r = random.uniform(0, total)
