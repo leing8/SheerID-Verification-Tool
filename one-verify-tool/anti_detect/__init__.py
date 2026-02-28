@@ -6,7 +6,7 @@ SheerID 验证工具 - 反检测模块
 - 欺诈拒绝诊断输出（fraudRulesReject 为不可恢复错误，不重试）
 - 会话创建与预热
 
-注意: 指纹和请求头生成已迁移到 common/device_fingerprint 模块。
+注意: 指纹和请求头生成已迁移到 common/device_fingerprint_factory 模块。
 注意: 代理检测功能已迁移到 common/proxy_checker 公共模块。
 
 用法:

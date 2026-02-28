@@ -7,21 +7,21 @@ import sys
 from pathlib import Path
 from typing import Dict, Optional, Tuple
 
-# 添加 common 公共模块路径 (device_fingerprint, proxy_checker)
+# 添加 common 公共模块路径 (device_fingerprint_factory, proxy_checker)
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "common"))
 try:
-    from device_fingerprint import DeviceIdentityFactory
+    from device_fingerprint_factory import DeviceIdentityFactory
 except ImportError:
-    print("❌ 致命错误: device_fingerprint 模块未找到")
-    print("请确保 common/device_fingerprint/ 目录存在")
+    print("❌ 致命错误: device_fingerprint_factory 模块未找到")
+    print("请确保 common/device_fingerprint_factory/ 目录存在")
     sys.exit(1)
 
 from config import PROGRAM_ID, SHEERID_API_URL
 from anti_detect.session import random_delay
 
-# common/student_factory: 确定性学生信息 + 文档生成
+# common/student_document_factory: 确定性学生信息 + 文档生成
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "common"))
-from student_factory import StudentInfoFactory
+from student_document_factory import StudentInfoFactory
 
 
 class GeminiVerifier:

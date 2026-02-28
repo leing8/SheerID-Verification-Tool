@@ -1,11 +1,11 @@
 """
-device-fingerprint — 独立设备指纹模块
+device_fingerprint_factory — 设备指纹工厂
 
 基于真实设备数据和 verificationId 确定性生成浏览器指纹。
 可供多个项目复用。
 
 用法:
-    from device_fingerprint import DeviceIdentityFactory
+    from device_fingerprint_factory import DeviceIdentityFactory
 
     factory = DeviceIdentityFactory()
     identity = factory.create("your-verification-id")

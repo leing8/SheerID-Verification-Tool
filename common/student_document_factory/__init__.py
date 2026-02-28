@@ -1,5 +1,5 @@
 """
-common.student_factory — 学生信息生成与文档生成公共模块
+common.student_document_factory — 学生文档工厂（学生信息生成与文档生成公共模块）
 
 对外暴露：
   - StudentInfoFactory: 工厂类，调用 create(verification_id) 获取完整学生信息
