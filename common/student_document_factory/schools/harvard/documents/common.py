@@ -327,36 +327,41 @@ _avatar_cache: dict = {}
 
 
 def fetch_random_avatar(seed: str, size: tuple = (139, 169)) -> Optional[Image.Image]:
-    """从 pravatar.cc 获取真人头像，失败返回占位灰色渐变图"""
+    """从 pravatar.cc 获取真人头像，失败返回带边框的占位灰色图"""
     cache_key = hashlib.md5(f"{seed}_{size}".encode()).hexdigest()
     if cache_key in _avatar_cache:
         return _avatar_cache[cache_key].copy()
 
     avatar_img = None
-    try:
-        unique_id = hashlib.md5(seed.encode()).hexdigest()[:16]
-        url = f"https://i.pravatar.cc/{max(size)}?u={unique_id}"
+    unique_id = hashlib.md5(seed.encode()).hexdigest()[:16]
+    request_size = max(size[0], size[1])
+    url = f"https://i.pravatar.cc/{request_size}?u={unique_id}"
 
+    # 最多尝试 2 次（应对偶发超时）
+    for attempt in range(2):
         try:
-            from curl_cffi import requests as cffi_requests
-            resp = cffi_requests.get(url, timeout=10, impersonate="chrome120")
-        except ImportError:
-            import requests
-            resp = requests.get(url, timeout=10)
+            try:
+                from curl_cffi import requests as cffi_requests
+                resp = cffi_requests.get(url, timeout=15, impersonate="chrome120")
+            except ImportError:
+                import requests
+                resp = requests.get(url, timeout=15)
 
-        if resp.status_code == 200 and len(resp.content) > 1000:
-            avatar_img = Image.open(BytesIO(resp.content)).convert("RGB")
-    except Exception:
-        pass
+            if resp.status_code == 200 and len(resp.content) > 1000:
+                avatar_img = Image.open(BytesIO(resp.content)).convert("RGB")
+                break
+        except Exception:
+            if attempt == 0:
+                continue  # 重试一次
 
     if avatar_img is None:
-        # 占位灰色渐变
-        avatar_img = Image.new("RGB", size, (180, 180, 180))
-        pixels = avatar_img.load()
-        for y in range(size[1]):
-            for x in range(size[0]):
-                gray = 160 + int(40 * y / size[1])
-                pixels[x, y] = (gray, gray, gray)
+        # 占位图：浅灰背景 + 深色边框（确保在白色背景上可见）
+        avatar_img = Image.new("RGB", size, (200, 200, 200))
+        avatar_draw = ImageDraw.Draw(avatar_img)
+        avatar_draw.rectangle(
+            [(0, 0), (size[0] - 1, size[1] - 1)],
+            outline=(80, 80, 80), width=2
+        )
     else:
         # 裁剪到证件照比例
         w, h = avatar_img.size

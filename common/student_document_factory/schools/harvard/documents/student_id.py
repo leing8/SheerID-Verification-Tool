@@ -31,11 +31,13 @@ if TYPE_CHECKING:
 
 _COORDS = {
     "photo":      (52, 40, 244, 240),    # 头像区域 (x1, y1, x2, y2)
-    "name":       (25, 253),             # 姓名
-    "id_number":  (25, 284),             # 学号
-    "sp_label":   (205, 284),            # SP 标识
-    "valid_thru": (423, 284),            # 过期日期
+    "birthday":   (375, 220),            # 生日（STUDENT 下方）
+    "name":       (25, 247),             # 姓名
+    "id_number":  (25, 278),             # 学号
+    "sp_label":   (205, 278),            # SP 标识
+    "valid_thru": (423, 278),            # 过期日期
     "barcode":    (25, 316, 240, 366),   # 条形码扰乱区域
+    "school_code": (480, 340),           # 学院缩写（右下角，动态渲染）
 }
 
 
@@ -66,6 +68,14 @@ def generate_student_id_card(student: "HarvardStudentData",
     # 重新获取 draw 引用（paste 之后可能失效）
     draw = ImageDraw.Draw(img)
 
+    # 1.5 生日（MM/DD/YY 格式，位于 STUDENT 下方）
+    birth_dt = datetime.strptime(student.birth_date, "%Y-%m-%d")
+    birthday_text = birth_dt.strftime("%m/%d/%y")
+    draw_text(draw, _COORDS["birthday"],
+              birthday_text,
+              font, color=text_color, spacing=0,
+              randomizer=randomizer)
+
     # 2. 姓名（大写，逐字符绘制）
     draw_text(draw, _COORDS["name"],
               f"{student.first_name} {student.last_name}".upper(),
@@ -95,5 +105,11 @@ def generate_student_id_card(student: "HarvardStudentData",
     for _ in range(rng.randint(3, 6)):
         x = rng.randint(bx1 + 5, bx2 - 5)
         draw.rectangle([(x, by1 + 3), (x + rng.randint(1, 4), by2 - 3)], fill=(0, 0, 0))
+
+    # 6. 学院缩写（右下角动态渲染）
+    draw_text(draw, _COORDS["school_code"],
+              student.school_code,
+              font, color=text_color, spacing=0,
+              randomizer=randomizer)
 
     return image_to_format(img, rng, output_format)
