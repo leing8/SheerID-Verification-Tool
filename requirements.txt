@@ -1,0 +1,21 @@
+# SheerID Verification Tool — 完整依赖
+#
+# 安装方法:
+#   pip install -r requirements.txt
+#
+# 或使用 pyproject.toml (推荐):
+#   pip install -e .
+#   pip install -e ".[dev]"    # 包含测试依赖
+#
+# 注意: 本文件与 pyproject.toml 保持同步
+# ============================================================
+
+# --- 核心依赖 ---
+mmh3>=4.0.0                # MurmurHash3 设备指纹哈希 (SheerID learn.js 算法)
+curl_cffi>=0.7.0           # TLS 指纹模拟 (JA3/JA4)
+Pillow>=10.0.0             # 学生证件图片生成
+reportlab>=4.0.0           # PDF 文档生成
+
+# --- 测试依赖 ---
+pytest>=7.0.0              # 测试框架
+pytest-cov>=4.0.0          # 覆盖率报告

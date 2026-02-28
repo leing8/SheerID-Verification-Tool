@@ -12,6 +12,26 @@ from dataclasses import dataclass, field
 
 from .catalog import DeviceProfile
 
+# ============================================================
+# SheerID 配置常量 (定期检查更新)
+# ============================================================
+
+# jslib 版本号，来源: https://cdn.jsdelivr.net/npm/@sheerid/jslib@2/sheerid-install.js
+# SheerID 服务端可能检查此值与 jslib 实际版本是否匹配
+# 最后验证: 2026-02-28, 建议每月检查一次
+SHEERID_CLIENT_VERSION = "2.190.0"
+SHEERID_CLIENT_NAME = "jslib"
+
+# NewRelic 追踪配置 (从 SheerID 页面的 NREUM 配置中提取)
+# 这些值对应 SheerID 的 NewRelic 账户，不匹配可能导致追踪异常
+# 最后验证: 2026-02-28
+NEWRELIC_ACCOUNT_ID = "364029"
+NEWRELIC_APP_ID = "134291347"
+
+# SheerID 服务端点
+SHEERID_ORIGIN = "https://services.sheerid.com"
+
+
 
 @dataclass(frozen=True)
 class DeviceIdentity:
@@ -86,10 +106,10 @@ class DeviceIdentity:
             nr_headers = self._generate_newrelic_headers()
             headers.update({
                 "content-type": "application/json",
-                "clientversion": "2.190.0",
-                "clientname": "jslib",
-                "origin": "https://services.sheerid.com",
-                "referer": "https://services.sheerid.com/",
+                "clientversion": SHEERID_CLIENT_VERSION,
+                "clientname": SHEERID_CLIENT_NAME,
+                "origin": SHEERID_ORIGIN,
+                "referer": f"{SHEERID_ORIGIN}/",
                 **nr_headers,
             })
 
@@ -116,8 +136,8 @@ class DeviceIdentity:
             "v": [0, 1],
             "d": {
                 "ty": "Browser",
-                "ac": "364029",
-                "ap": "134291347",
+                "ac": NEWRELIC_ACCOUNT_ID,
+                "ap": NEWRELIC_APP_ID,
                 "id": span_id,
                 "tr": self._trace_id,
                 "ti": timestamp,
@@ -127,7 +147,7 @@ class DeviceIdentity:
         return {
             "newrelic": base64.b64encode(json.dumps(payload).encode()).decode(),
             "traceparent": f"00-{self._trace_id}-{span_id}-01",
-            "tracestate": f"364029@nr=0-1-364029-134291347-{span_id}----{timestamp}",
+            "tracestate": f"{NEWRELIC_ACCOUNT_ID}@nr=0-1-{NEWRELIC_ACCOUNT_ID}-{NEWRELIC_APP_ID}-{span_id}----{timestamp}",
         }
 
     def __str__(self) -> str:

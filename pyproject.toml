@@ -1,0 +1,43 @@
+[project]
+name = "sheerid-verification-tool"
+version = "1.0.0"
+description = "SheerID student verification automation tool"
+requires-python = ">=3.10"
+
+# === 运行时依赖 ===
+dependencies = [
+    # 设备指纹工厂 — MurmurHash3 (SheerID learn.js 使用 x64_128, seed=31)
+    "mmh3>=4.0.0",
+    # TLS 会话 — 模拟真实浏览器 TLS 指纹 (JA3/JA4)
+    "curl_cffi>=0.7.0",
+    # 文档生成 — 学生证件图片处理
+    "Pillow>=10.0.0",
+    # PDF 生成 — 成绩单/发票等
+    "reportlab>=4.0.0",
+]
+
+[project.optional-dependencies]
+# 开发/测试依赖
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+]
+
+# === pytest 配置 ===
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+# 将 common/ 加入 pythonpath，测试中可直接 import
+pythonpath = ["common"]
+addopts = "-v --tb=short"
+
+# === 覆盖率配置 ===
+[tool.coverage.run]
+source = ["common"]
+omit = ["tests/*", "*/__pycache__/*"]
+
+[tool.coverage.report]
+show_missing = true
+skip_empty = true
