@@ -30,9 +30,6 @@ _DATACENTER_KEYWORDS = frozenset({
 # ── 住宅代理提供商关键词 ──
 _RESIDENTIAL_KEYWORDS = frozenset({
     "residential", "resi",
-    "mobile", "4g", "5g", "lte",
-    "isp",
-    "roxy",
     "bright", "brightdata",
     "oxylabs",
     "smartproxy",
@@ -41,6 +38,9 @@ _RESIDENTIAL_KEYWORDS = frozenset({
     "soax",
     "packetstream",
     "iproyal",
+    "luminati",
+    "proxyrack",
+    "storm proxies",
 })
 
 # ── Mobile 提供商关键词 ──

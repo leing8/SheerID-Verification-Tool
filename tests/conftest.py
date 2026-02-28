@@ -18,10 +18,12 @@ conftest.py — pytest 共享 fixtures
     # ── 按模块运行 ──
     pytest tests/common/device_fingerprint_factory/ -v -s    # 设备指纹工厂
     pytest tests/common/student_document_factory/ -v -s      # 学生文档工厂
+    pytest tests/common/proxy_checker/ -v -s                 # 代理检测器
 
     # ── 运行单个测试文件 ──
     pytest tests/common/device_fingerprint_factory/test_verbose_output.py -v -s
     pytest tests/common/student_document_factory/test_verbose_output.py -v -s
+    pytest tests/common/proxy_checker/test_verbose_output.py -v -s
 
     # ── 运行单个测试类 / 方法 ──
     pytest tests/.../test_factory.py::TestDeterministicGeneration -v
@@ -30,10 +32,13 @@ conftest.py — pytest 共享 fixtures
     # ── 自定义参数 ──
     --vid=<verification_id>              # 指定测试用的 verificationId
                                          # 未指定时使用默认值
+    --proxy=<proxy_url>                  # 指定实时代理（用于 test_live_proxy.py）
+                                         # 未指定时跳过实时测试
 
     # 示例:
     pytest tests/common/device_fingerprint_factory/ -v -s --vid=67890abcdef1234567890123
     pytest tests/common/student_document_factory/test_verbose_output.py -v -s --vid=my-vid-001
+    pytest tests/common/proxy_checker/test_live_proxy.py -v -s --proxy="http://user:pass@host:port"
 
     # ── 覆盖率报告 ──
     pytest --cov=common --cov-report=term-missing
@@ -43,12 +48,18 @@ import pytest
 
 
 def pytest_addoption(parser):
-    """注册 --vid 命令行参数"""
+    """注册自定义命令行参数"""
     parser.addoption(
         "--vid",
         action="store",
         default=None,
         help="指定测试用的 verificationId（默认使用内置固定值）",
+    )
+    parser.addoption(
+        "--proxy",
+        action="store",
+        default=None,
+        help="指定实时代理地址，用于 test_live_proxy.py（如 http://user:pass@host:port）",
     )
 
 
