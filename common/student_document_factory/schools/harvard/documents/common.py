@@ -29,6 +29,8 @@ _DOCUMENTS_DIR = Path(__file__).parent
 # 模板图片路径（templates/ 子目录）
 _TEMPLATES_DIR = _DOCUMENTS_DIR / "templates"
 TRANSCRIPT_TEMPLATE = _TEMPLATES_DIR / "harvard-transcript.png"
+TRANSCRIPT_TEMPLATE_1 = _TEMPLATES_DIR / "harvard-transcript1.png"
+TRANSCRIPT_TEMPLATE_2 = _TEMPLATES_DIR / "harvard-transcript2.png"
 INVOICE_TEMPLATE = _TEMPLATES_DIR / "harvard-tuition-receipt.png"
 STUDENT_ID_TEMPLATE = _TEMPLATES_DIR / "harvard-student-id.png"
 

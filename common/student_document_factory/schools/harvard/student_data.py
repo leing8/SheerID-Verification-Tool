@@ -68,36 +68,86 @@ PROGRAM_SCHOOL_CODE = {
     "Data Science (S.M.)":      "GSAS",
 }
 
-# 专业 → 课程列表 (course_code, title, credits, grade, level)
-# 课程代码使用哈佛官方 COMPSCI 前缀
+# 专业 → 课程池 (course_code, title, credits, grade, level)
+# 课程代码使用哈佛官方 COMPSCI / MATH / STAT / APMTH 前缀
+# 来源：Harvard SEAS 课程目录、FAS 注册处、my.harvard 课程搜索
+# build() 会从中随机选取 8-12 门，模拟真实学期修课记录
 PROGRAM_COURSES = {
     "Computer Science (A.B.)": [
-        ("COMPSCI 50",  "Introduction to Computer Science I",   4, "A",  "U"),
-        ("MATH 21A",    "Multivariable Calculus",               4, "A-", "U"),
-        ("COMPSCI 124", "Data Structures & Algorithms",         4, "A",  "U"),
-        ("STAT 110",    "Probability",                          4, "B+", "U"),
-        ("COMPSCI 181", "Machine Learning",                     4, "A-", "U"),
+        # 核心必修
+        ("COMPSCI 50",  "Introduction to Computer Science I",     4, "A",  "U"),
+        ("COMPSCI 61",  "Systems Programming and Machine Org",    4, "A-", "U"),
+        ("COMPSCI 121", "Introduction to Formal Languages",       4, "A",  "U"),
+        ("COMPSCI 124", "Data Structures & Algorithms",           4, "A",  "U"),
+        ("COMPSCI 134", "Operating Systems",                      4, "B+", "U"),
+        ("COMPSCI 136", "Economics and Computation",              4, "A-", "U"),
+        ("COMPSCI 141", "Computing Hardware",                     4, "B+", "U"),
+        ("COMPSCI 152", "Programming Languages",                  4, "A",  "U"),
+        ("COMPSCI 161", "Operating Systems",                      4, "A-", "U"),
+        ("COMPSCI 171", "Visualization",                          4, "A",  "U"),
+        ("COMPSCI 181", "Machine Learning",                       4, "A-", "U"),
+        ("COMPSCI 182", "Artificial Intelligence",                4, "A",  "U"),
+        # 跨系必修（MATH / STAT）
+        ("MATH 21A",    "Multivariable Calculus",                 4, "A-", "U"),
+        ("MATH 21B",    "Linear Algebra and Differential Eqs",    4, "B+", "U"),
+        ("STAT 110",    "Probability",                            4, "A",  "U"),
     ],
     "Computer Science (S.M.)": [
-        ("COMPSCI 205", "Computing Foundations for Comp Sci",   4, "A",  "G"),
-        ("COMPSCI 249R", "Special Topics in Edge Computing",    4, "A-", "G"),
-        ("COMPSCI 290", "Research Methods in Computer Science", 4, "A",  "G"),
-        ("STAT 195",    "Statistical Computing",                4, "B+", "G"),
-        ("COMPSCI 280", "Graduate Seminar",                     2, "CR", "G"),
+        # 研究生核心
+        ("COMPSCI 205", "Computing Foundations for Comp Sci",     4, "A",  "G"),
+        ("COMPSCI 207", "Systems Development for Comp Research",  4, "A-", "G"),
+        ("COMPSCI 223", "Probabilistic Analysis and Algorithms",  4, "A",  "G"),
+        ("COMPSCI 224", "Advanced Algorithms",                    4, "B+", "G"),
+        ("COMPSCI 226", "Distributed Computing",                  4, "A",  "G"),
+        ("COMPSCI 228", "Computational Learning Theory",          4, "A-", "G"),
+        ("COMPSCI 243", "Advanced Computer Networks",             4, "A",  "G"),
+        ("COMPSCI 246", "Advanced Computer Architecture",         4, "B+", "G"),
+        ("COMPSCI 249R", "Special Topics in Edge Computing",      4, "A-", "G"),
+        ("COMPSCI 261", "Research Topics in Operating Systems",   4, "A",  "G"),
+        ("COMPSCI 265", "Big Data Systems",                       4, "A-", "G"),
+        ("COMPSCI 280", "Graduate Seminar",                       2, "CR", "G"),
+        ("COMPSCI 290", "Research Methods in Computer Science",   4, "A",  "G"),
+        # 跨系选修（STAT / APMTH）
+        ("STAT 195",    "Statistical Computing",                  4, "B+", "G"),
+        ("APMTH 207",   "Advanced Scientific Computing",          4, "A",  "G"),
     ],
     "Computer Science (Ph.D.)": [
-        ("COMPSCI 300", "Research Seminar in CS",               2, "CR", "G"),
-        ("COMPSCI 330", "Advanced Topics in Algorithms",        4, "A",  "G"),
-        ("COMPSCI 391", "Dissertation Research",                8, "S",  "G"),
-        ("COMPSCI 287", "Advanced Robotics",                    4, "A-", "G"),
-        ("STAT 211",    "Statistical Inference I",              4, "A",  "G"),
+        # 博士核心 + 研讨
+        ("COMPSCI 223", "Probabilistic Analysis and Algorithms",  4, "A",  "G"),
+        ("COMPSCI 224", "Advanced Algorithms",                    4, "A",  "G"),
+        ("COMPSCI 226", "Distributed Computing",                  4, "A-", "G"),
+        ("COMPSCI 228", "Computational Learning Theory",          4, "A",  "G"),
+        ("COMPSCI 252", "Advanced Programming Language Design",   4, "A-", "G"),
+        ("COMPSCI 260", "Advanced Topics in Comp Architecture",   4, "B+", "G"),
+        ("COMPSCI 263", "Systems Security",                       4, "A",  "G"),
+        ("COMPSCI 271", "Topics in Machine Learning",             4, "A-", "G"),
+        ("COMPSCI 281", "Advanced Machine Learning",              4, "A",  "G"),
+        ("COMPSCI 287", "Advanced Robotics",                      4, "A-", "G"),
+        ("COMPSCI 300", "Research Seminar in CS",                 2, "CR", "G"),
+        ("COMPSCI 330", "Advanced Topics in Algorithms",          4, "A",  "G"),
+        ("COMPSCI 391", "Dissertation Research",                  8, "S",  "G"),
+        # 跨系（STAT / MATH）
+        ("STAT 211",    "Statistical Inference I",                4, "A",  "G"),
+        ("MATH 232BR",  "Algebraic Geometry II",                  4, "A-", "G"),
     ],
     "Data Science (S.M.)": [
-        ("STAT 110",    "Probability",                          4, "A",  "G"),
-        ("COMPSCI 109B", "Advanced Data Science",               4, "A-", "G"),
-        ("STAT 149",    "Generalized Linear Models",            4, "B+", "G"),
-        ("COMPSCI 205L", "Continuous Math for Data Science",    4, "A",  "G"),
-        ("APMTH 207",   "Advanced Scientific Computing",        4, "A",  "G"),
+        # 核心 + 统计
+        ("COMPSCI 109A", "Data Science 1: Intro to Data Science", 4, "A",  "G"),
+        ("COMPSCI 109B", "Data Science 2: Advanced Topics",       4, "A-", "G"),
+        ("COMPSCI 205",  "Computing Foundations for Comp Sci",    4, "A",  "G"),
+        ("COMPSCI 207",  "Systems Development for Comp Research", 4, "B+", "G"),
+        ("COMPSCI 281",  "Advanced Machine Learning",             4, "A",  "G"),
+        ("STAT 110",     "Probability",                           4, "A",  "G"),
+        ("STAT 111",     "Introduction to Statistical Inference", 4, "A-", "G"),
+        ("STAT 139",     "Linear Models",                         4, "B+", "G"),
+        ("STAT 149",     "Generalized Linear Models",             4, "A",  "G"),
+        ("STAT 195",     "Statistical Computing",                 4, "A",  "G"),
+        ("STAT 211",     "Statistical Inference I",               4, "A-", "G"),
+        ("APMTH 207",    "Advanced Scientific Computing",         4, "A",  "G"),
+        ("APMTH 231",    "Decision Theory",                       4, "B+", "G"),
+        # 跨系选修
+        ("COMPSCI 265",  "Big Data Systems",                      4, "A-", "G"),
+        ("MATH 154",     "Probability Theory",                    4, "A",  "G"),
     ],
 }
 
@@ -223,7 +273,10 @@ def build(verification_id: str, program: str) -> HarvardStudentData:
     invoice_number = f"INV-{time.strftime('%Y%m%d')}-{student_id}"
 
     school_code = PROGRAM_SCHOOL_CODE.get(program, "GSAS")
-    courses = PROGRAM_COURSES.get(program, PROGRAM_COURSES["Computer Science (A.B.)"])
+    course_pool = PROGRAM_COURSES.get(program, PROGRAM_COURSES["Computer Science (A.B.)"])
+    # 从课程池中随机选取 8-12 门，模拟真实学期修课记录
+    num_courses = rng.randint(8, min(12, len(course_pool)))
+    courses = rng.sample(course_pool, num_courses)
     tuition_amount = TUITION_PER_TERM.get(program, 28664)
 
     # 地址生成

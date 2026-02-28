@@ -16,7 +16,8 @@ from student_document_factory.schools.harvard.documents.common import (
     DocumentRandomizer,
     INVOICE_TEMPLATE,
     STUDENT_ID_TEMPLATE,
-    TRANSCRIPT_TEMPLATE,
+    TRANSCRIPT_TEMPLATE_1,
+    TRANSCRIPT_TEMPLATE_2,
 )
 
 
@@ -25,7 +26,8 @@ class TestTemplateFiles:
 
     def test_transcript_template_exists(self):
         """成绩单模板文件应存在"""
-        assert TRANSCRIPT_TEMPLATE.exists(), f"模板不存在: {TRANSCRIPT_TEMPLATE}"
+        assert TRANSCRIPT_TEMPLATE_1.exists(), f"模板不存在: {TRANSCRIPT_TEMPLATE_1}"
+        assert TRANSCRIPT_TEMPLATE_2.exists(), f"模板不存在: {TRANSCRIPT_TEMPLATE_2}"
 
     def test_invoice_template_exists(self):
         """发票模板文件应存在"""
@@ -167,7 +169,7 @@ class TestDocumentRandomizer:
         """拍照模拟应改变原始图像"""
         from PIL import Image
         import random
-        img = Image.open(TRANSCRIPT_TEMPLATE).convert("RGB")
+        img = Image.open(TRANSCRIPT_TEMPLATE_1).convert("RGB")
         original_data = list(img.getdata())
 
         rng = random.Random(42)
