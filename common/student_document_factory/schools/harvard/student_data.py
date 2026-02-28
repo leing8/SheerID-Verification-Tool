@@ -4,6 +4,9 @@
 定义哈佛3种文档（学生证/成绩单/发票）所需的完整学生数据字段，
 并提供基于 verificationId 的确定性数据生成函数。
 
+包含：姓名、邮箱、出生日期、学号、专业、学院、GPA、学期、课程、
+学费、附加费、地址。
+
 学费、费用、课程代码均基于 2025-2026 学年哈佛官方公布数据。
 """
 
@@ -113,14 +116,36 @@ _FEE_ACTIVITY = 225     # 学生活动费 $450/年 ÷ 2
 _FEE_GSC      = 35      # Harvard Griffin GSAS Student Council 费（秋季学期收取）
 
 
+# ============ 美国地址数据 ============
+
+US_ADDRESSES = [
+    {"city": "Boston", "state": "MA", "zip": "02101"},
+    {"city": "Cambridge", "state": "MA", "zip": "02138"},
+    {"city": "New York", "state": "NY", "zip": "10001"},
+    {"city": "Los Angeles", "state": "CA", "zip": "90001"},
+    {"city": "Chicago", "state": "IL", "zip": "60601"},
+    {"city": "San Francisco", "state": "CA", "zip": "94102"},
+    {"city": "Seattle", "state": "WA", "zip": "98101"},
+    {"city": "Denver", "state": "CO", "zip": "80201"},
+    {"city": "Austin", "state": "TX", "zip": "78701"},
+    {"city": "Miami", "state": "FL", "zip": "33101"},
+]
+
+US_STREETS = [
+    "Main St", "Oak Ave", "Maple Dr", "Park Rd", "Cedar Ln",
+    "Elm St", "Pine Ave", "Washington Blvd", "Lincoln Way", "Madison Ave",
+    "Jefferson St", "Adams Rd", "Franklin Dr", "Liberty Ln", "Union St",
+]
+
+
 @dataclass
 class HarvardStudentData:
     """
     哈佛大学3种文档所需的完整学生数据。
 
     学生证用到：first_name, last_name, student_id, program, school_code, valid_thru
-    成绩单用到：first_name, last_name, student_id, printed_date, courses, gpa
-    发票用到：  first_name, last_name, student_id, invoice_number, tuition, term, fees
+    成绩单用到：first_name, last_name, student_id, printed_date, courses, gpa, address
+    发票用到：  first_name, last_name, student_id, invoice_number, tuition, term, fees, address
     """
     # === 通用字段（所有文档共用）===
     first_name: str
@@ -145,6 +170,9 @@ class HarvardStudentData:
     fee_health:     int      # 健康保险费
     fee_activity:   int      # 学生活动费
     fee_gsc:        int      # GSC 费用
+
+    # 美国地址（4行：姓名、街道、城市州邮编、国家）
+    address: Tuple[str, str, str, str]
 
 
 def _seeded_random(verification_id: str) -> random.Random:
@@ -198,6 +226,18 @@ def build(verification_id: str, program: str) -> HarvardStudentData:
     courses = PROGRAM_COURSES.get(program, PROGRAM_COURSES["Computer Science (A.B.)"])
     tuition_amount = TUITION_PER_TERM.get(program, 28664)
 
+    # 地址生成
+    addr_info = rng.choice(US_ADDRESSES)
+    street_num = rng.randint(100, 9999)
+    street = rng.choice(US_STREETS)
+    apt = f", Apt {rng.randint(1, 999)}" if rng.random() < 0.3 else ""
+    address = (
+        f"{first} {last}",
+        f"{street_num} {street}{apt}",
+        f"{addr_info['city']}, {addr_info['state']} {addr_info['zip']}",
+        "United States",
+    )
+
     return HarvardStudentData(
         first_name=first,
         last_name=last,
@@ -215,4 +255,5 @@ def build(verification_id: str, program: str) -> HarvardStudentData:
         fee_health=_FEE_HEALTH,
         fee_activity=_FEE_ACTIVITY,
         fee_gsc=_FEE_GSC,
+        address=address,
     )

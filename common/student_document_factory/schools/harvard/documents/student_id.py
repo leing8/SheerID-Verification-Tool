@@ -16,6 +16,7 @@ from PIL import Image, ImageDraw
 
 from .common import (
     STUDENT_ID_TEMPLATE,
+    DocumentRandomizer,
     draw_text,
     fetch_random_avatar,
     image_to_format,
@@ -47,6 +48,7 @@ def generate_student_id_card(student: "HarvardStudentData",
         raise FileNotFoundError(f"哈佛学生证模板不存在: {STUDENT_ID_TEMPLATE}")
 
     rng = seeded_rng(student)
+    randomizer = DocumentRandomizer(rng)
 
     img = Image.open(STUDENT_ID_TEMPLATE).convert("RGB")
     draw = ImageDraw.Draw(img)
@@ -67,22 +69,26 @@ def generate_student_id_card(student: "HarvardStudentData",
     # 2. 姓名（大写，逐字符绘制）
     draw_text(draw, _COORDS["name"],
               f"{student.first_name} {student.last_name}".upper(),
-              font, color=text_color, spacing=0)
+              font, color=text_color, spacing=0,
+              randomizer=randomizer)
 
     # 3. 学号 + SP
     draw_text(draw, _COORDS["id_number"],
               f"{student.student_id} 0",
-              font, color=text_color, spacing=0)
+              font, color=text_color, spacing=0,
+              randomizer=randomizer)
     draw_text(draw, _COORDS["sp_label"],
               "SP",
-              font, color=text_color, spacing=0)
+              font, color=text_color, spacing=0,
+              randomizer=randomizer)
 
     # 4. VALID THRU
     now = datetime.now()
     valid_year = now.year if now.month <= 5 else now.year + 1
     draw_text(draw, _COORDS["valid_thru"],
               f"05/31/{valid_year}",
-              font, color=text_color, spacing=0)
+              font, color=text_color, spacing=0,
+              randomizer=randomizer)
 
     # 5. 条形码扰乱：在原有条形码上叠加随机黑线
     bx1, by1, bx2, by2 = _COORDS["barcode"]

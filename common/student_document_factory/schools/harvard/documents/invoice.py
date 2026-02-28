@@ -17,8 +17,8 @@ from PIL import Image, ImageDraw
 
 from .common import (
     INVOICE_TEMPLATE,
+    DocumentRandomizer,
     draw_text,
-    generate_us_address,
     image_to_format,
     load_monospace_fonts,
     seeded_rng,
@@ -65,22 +65,29 @@ def generate_invoice(student: "HarvardStudentData",
 
     rng = seeded_rng(student)
     fonts = load_monospace_fonts()
+    randomizer = DocumentRandomizer(rng)
 
     img = Image.open(INVOICE_TEMPLATE).convert("RGB")
     draw = ImageDraw.Draw(img)
 
     # 1. 学生姓名与地址
-    addr = generate_us_address(student.first_name, student.last_name, rng)
-    draw_text(draw, _COORDS["student_name"],    addr[0], fonts["sm_bold"])
-    draw_text(draw, _COORDS["student_addr1"],   addr[1], fonts["sm_bold"])
-    draw_text(draw, _COORDS["student_addr2"],   addr[2], fonts["sm_bold"])
-    draw_text(draw, _COORDS["student_country"], addr[3], fonts["sm_bold"])
+    addr = student.address
+    draw_text(draw, _COORDS["student_name"],    addr[0], fonts["sm_bold"],
+              randomizer=randomizer)
+    draw_text(draw, _COORDS["student_addr1"],   addr[1], fonts["sm_bold"],
+              randomizer=randomizer)
+    draw_text(draw, _COORDS["student_addr2"],   addr[2], fonts["sm_bold"],
+              randomizer=randomizer)
+    draw_text(draw, _COORDS["student_country"], addr[3], fonts["sm_bold"],
+              randomizer=randomizer)
 
     # 2. 发票元数据
-    draw_text(draw, _COORDS["invoice_number"], student.invoice_number, fonts["sm_bold"])
-    draw_text(draw, _COORDS["invoice_date"],   time.strftime("%B %d, %Y"), fonts["sm_bold"])
+    draw_text(draw, _COORDS["invoice_number"], student.invoice_number, fonts["sm_bold"],
+              randomizer=randomizer)
+    draw_text(draw, _COORDS["invoice_date"],   time.strftime("%B %d, %Y"), fonts["sm_bold"],
+              randomizer=randomizer)
 
-    # 3. 费用明细行（全部从 student 对象读取，2025-2026 哈佛官方费率）
+    # 3. 费用明细行
     date_str = time.strftime("%m/%d/%Y")
     program_short = student.program.split("(")[0].strip()
     line_items = [
@@ -93,14 +100,19 @@ def generate_invoice(student: "HarvardStudentData",
     y = _COORDS["items_start_y"]
     cols = _COORDS["item_cols"]
     for dt, desc, term, amt in line_items:
-        draw_text(draw, (cols["date"],        y), dt,              fonts["sm_bold"])
-        draw_text(draw, (cols["description"], y), desc[:38],       fonts["sm_bold"])
-        draw_text(draw, (cols["term"],        y), term,            fonts["sm_bold"])
-        draw_text(draw, (cols["amount"],      y), f"${amt:,}.00",  fonts["sm_bold"])
+        draw_text(draw, (cols["date"],        y), dt,              fonts["sm_bold"],
+                  randomizer=randomizer)
+        draw_text(draw, (cols["description"], y), desc[:38],       fonts["sm_bold"],
+                  randomizer=randomizer)
+        draw_text(draw, (cols["term"],        y), term,            fonts["sm_bold"],
+                  randomizer=randomizer)
+        draw_text(draw, (cols["amount"],      y), f"${amt:,}.00",  fonts["sm_bold"],
+                  randomizer=randomizer)
         y += _ITEM_LINE_HEIGHT
 
     # 4. 总额
     total = student.tuition_amount + student.fee_health + student.fee_activity + student.fee_gsc
-    draw_text(draw, _COORDS["total_amount"], f"${total:,}.00", fonts["md_bold"])
+    draw_text(draw, _COORDS["total_amount"], f"${total:,}.00", fonts["md_bold"],
+              randomizer=randomizer)
 
     return image_to_format(img, rng, output_format)

@@ -1,7 +1,12 @@
 """
 哈佛文档生成 — 公共工具模块
 
-包含所有文档共享的：字体加载、文本绘制、反检测处理、头像获取、地址生成。
+包含所有文档共享的：
+  - 字体加载
+  - 文本绘制（支持坐标微偏移）
+  - DocumentRandomizer（模拟手机拍照效果，对抗感知哈希 / ADR 重复检测）
+  - 头像获取
+
 字体直接使用项目内打包的 TTF 文件，不依赖宿主机。
 """
 
@@ -11,24 +16,24 @@ from io import BytesIO
 from pathlib import Path
 from typing import TYPE_CHECKING, Optional, Tuple
 
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 if TYPE_CHECKING:
     from ..student_data import HarvardStudentData
 
 # ============ 路径常量 ============
 
-# 上层 harvard/ 目录（fonts/ 和 templates/ 均在此目录下）
-_HARVARD_DIR = Path(__file__).parent.parent
+# documents/ 目录（fonts/ 和 templates/ 均在此目录下）
+_DOCUMENTS_DIR = Path(__file__).parent
 
 # 模板图片路径（templates/ 子目录）
-_TEMPLATES_DIR = _HARVARD_DIR / "templates"
+_TEMPLATES_DIR = _DOCUMENTS_DIR / "templates"
 TRANSCRIPT_TEMPLATE = _TEMPLATES_DIR / "harvard-transcript.png"
 INVOICE_TEMPLATE = _TEMPLATES_DIR / "harvard-tuition-receipt.png"
 STUDENT_ID_TEMPLATE = _TEMPLATES_DIR / "harvard-student-id.png"
 
 # 字体路径（fonts/ 子目录，项目内打包，不依赖宿主机）
-_FONTS_DIR = _HARVARD_DIR / "fonts"
+_FONTS_DIR = _DOCUMENTS_DIR / "fonts"
 _FONT_LETTER_GOTHIC = _FONTS_DIR / "Letter Gothic Std.ttf"
 _FONT_LETTER_GOTHIC_BOLD = _FONTS_DIR / "Letter Gothic Std Bold.ttf"
 _FONT_TIMES = _FONTS_DIR / "Times New Roman.ttf"
@@ -72,11 +77,19 @@ def load_serif_font(size: int = 28) -> ImageFont.FreeTypeFont:
     return ImageFont.truetype(str(_FONT_TIMES_BOLD), size)
 
 
-# ============ 文本绘制（打字机效果）============
+# ============ 文本绘制（打字机效果，支持坐标微偏移）============
 
 def draw_text(draw: ImageDraw.Draw, pos: tuple, text: str,
-              font, color: tuple = (30, 30, 30), spacing: int = -1):
-    """逐字符绘制，模拟打字机紧凑字间距"""
+              font, color: tuple = (30, 30, 30), spacing: int = -1,
+              randomizer: "DocumentRandomizer | None" = None):
+    """
+    逐字符绘制，模拟打字机紧凑字间距。
+
+    如果传入 randomizer，则坐标会自动应用微偏移，
+    破坏固定坐标模式以对抗感知哈希检测。
+    """
+    if randomizer is not None:
+        pos = randomizer.jitter_coord(pos)
     x, y = pos
     for char in text:
         draw.text((x, y), char, fill=color, font=font)
@@ -84,30 +97,216 @@ def draw_text(draw: ImageDraw.Draw, pos: tuple, text: str,
         x += (bbox[2] - bbox[0] if bbox else 6) + spacing
 
 
-# ============ 反检测处理 ============
+# ============ 拍照模拟 — DocumentRandomizer ============
 
-def apply_anti_detection(img: Image.Image, rng: random.Random,
-                         noise_intensity: float = 0.008) -> Image.Image:
+class DocumentRandomizer:
     """
-    添加微弱噪声防止AI检测"过于完美"的文档。
+    模拟手机拍摄纸质文档的随机变换。
+
+    同一 RNG seed → 确定性变换（同一 verificationId 生成相同结果）。
+    不同 seed → 不同的变换参数 → 视觉上唯一的文档图像。
+
+    变换流水线（按顺序）：
+      1. 坐标微偏移（draw_text 阶段）
+      2. 透视变形  — 模拟纸张不平整 / 拍摄角度
+      3. 轻微旋转  — 模拟手机未完全对齐
+      4. 光照变换  — 亮度 / 色温偏移 + 渐变阴影
+      5. 高斯噪声  — 模拟传感器噪声
+      6. 高斯模糊  — 模拟轻微对焦偏差
+      7. JPEG 重编码 — 引入自然压缩伪影
+
+    所有参数范围精心设计：足以改变感知哈希，但不影响人眼可读性。
     """
-    try:
-        import numpy as np
-        arr = np.array(img, dtype=np.float32)
-        noise = np.random.RandomState(rng.randint(0, 2 ** 31)).normal(
-            0, noise_intensity * 255, arr.shape
+
+    def __init__(self, rng: random.Random):
+        self.rng = rng
+        # 预先采样所有变换参数（确保确定性）
+        self._jitter_max = rng.randint(2, 3)
+        self._rotation_angle = rng.uniform(-1.2, 1.2)
+        self._brightness_offset = rng.uniform(-0.10, 0.10)
+        self._color_temp_shift = rng.randint(-8, 8)
+        self._noise_sigma = rng.uniform(2.0, 5.0)
+        self._blur_radius = rng.uniform(0.3, 0.7)
+        self._jpeg_quality = rng.randint(87, 95)
+        # 透视变形：四角偏移量
+        self._perspective_offsets = [
+            (rng.randint(-6, 6), rng.randint(-6, 6)),  # 左上
+            (rng.randint(-6, 6), rng.randint(-6, 6)),  # 右上
+            (rng.randint(-6, 6), rng.randint(-6, 6)),  # 右下
+            (rng.randint(-6, 6), rng.randint(-6, 6)),  # 左下
+        ]
+        # 渐变阴影方向和强度
+        self._shadow_direction = rng.choice(["top", "bottom", "left", "right"])
+        self._shadow_intensity = rng.uniform(0.03, 0.08)
+
+    def jitter_coord(self, pos: tuple, max_offset: int = 0) -> tuple:
+        """坐标微偏移 ±N 像素，破坏固定坐标特征"""
+        offset = max_offset if max_offset > 0 else self._jitter_max
+        dx = self.rng.randint(-offset, offset)
+        dy = self.rng.randint(-offset, offset)
+        return (pos[0] + dx, pos[1] + dy)
+
+    def _apply_perspective(self, img: Image.Image) -> Image.Image:
+        """透视变形 — 四角独立微偏移模拟纸张不平整"""
+        w, h = img.size
+        # 原始四角坐标
+        src = [(0, 0), (w, 0), (w, h), (0, h)]
+        # 偏移后的四角坐标
+        dst = [
+            (src[i][0] + self._perspective_offsets[i][0],
+             src[i][1] + self._perspective_offsets[i][1])
+            for i in range(4)
+        ]
+        # 使用 PIL 的 PERSPECTIVE 变换
+        coeffs = self._find_perspective_coeffs(dst, src)
+        return img.transform(
+            (w, h), Image.Transform.PERSPECTIVE, coeffs,
+            Image.Resampling.BICUBIC,
+            fillcolor=(255, 255, 255),
         )
+
+    @staticmethod
+    def _find_perspective_coeffs(src_pts, dst_pts):
+        """计算透视变换的 8 个系数"""
+        matrix = []
+        for (sx, sy), (dx, dy) in zip(src_pts, dst_pts):
+            matrix.append([dx, dy, 1, 0, 0, 0, -sx * dx, -sx * dy])
+            matrix.append([0, 0, 0, dx, dy, 1, -sy * dx, -sy * dy])
+        A = matrix
+        B = []
+        for (sx, _sy) in src_pts:
+            B.append(sx)
+            B.append(_sy)
+        # 求解线性方程组 Ax = B
+        # 简单高斯消元（8x8，足够小）
+        n = 8
+        for col in range(n):
+            max_row = max(range(col, n), key=lambda r: abs(A[r][col]))
+            A[col], A[max_row] = A[max_row], A[col]
+            B[col], B[max_row] = B[max_row], B[col]
+            for row in range(col + 1, n):
+                if A[col][col] == 0:
+                    continue
+                f = A[row][col] / A[col][col]
+                for j in range(col, n):
+                    A[row][j] -= f * A[col][j]
+                B[row] -= f * B[col]
+        # 回代
+        x = [0.0] * n
+        for i in range(n - 1, -1, -1):
+            if A[i][i] == 0:
+                x[i] = 0
+                continue
+            x[i] = B[i]
+            for j in range(i + 1, n):
+                x[i] -= A[i][j] * x[j]
+            x[i] /= A[i][i]
+        return tuple(x)
+
+    def _apply_rotation(self, img: Image.Image) -> Image.Image:
+        """轻微旋转 — 模拟手机未完全对齐（≤1.5°）"""
+        if abs(self._rotation_angle) < 0.05:
+            return img
+        return img.rotate(
+            self._rotation_angle,
+            resample=Image.Resampling.BICUBIC,
+            expand=False,
+            fillcolor=(255, 255, 255),
+        )
+
+    def _apply_lighting(self, img: Image.Image) -> Image.Image:
+        """
+        光照模拟：
+          - 全局亮度偏移
+          - 色温偏移（R/B 通道微调）
+          - 方向性渐变阴影
+        """
+        try:
+            import numpy as np
+        except ImportError:
+            return img
+
+        arr = np.array(img, dtype=np.float32)
+        h, w = arr.shape[:2]
+
+        # 1. 全局亮度
+        arr *= (1.0 + self._brightness_offset)
+
+        # 2. 色温偏移：暖光增加 R 减少 B，冷光相反
+        if arr.ndim == 3 and arr.shape[2] >= 3:
+            arr[:, :, 0] += self._color_temp_shift   # R
+            arr[:, :, 2] -= self._color_temp_shift   # B
+
+        # 3. 渐变阴影
+        if self._shadow_direction == "top":
+            gradient = np.linspace(1.0 - self._shadow_intensity, 1.0, h)
+            gradient = gradient[:, np.newaxis, np.newaxis]
+        elif self._shadow_direction == "bottom":
+            gradient = np.linspace(1.0, 1.0 - self._shadow_intensity, h)
+            gradient = gradient[:, np.newaxis, np.newaxis]
+        elif self._shadow_direction == "left":
+            gradient = np.linspace(1.0 - self._shadow_intensity, 1.0, w)
+            gradient = gradient[np.newaxis, :, np.newaxis]
+        else:  # right
+            gradient = np.linspace(1.0, 1.0 - self._shadow_intensity, w)
+            gradient = gradient[np.newaxis, :, np.newaxis]
+        arr *= gradient
+
+        arr = np.clip(arr, 0, 255).astype(np.uint8)
+        return Image.fromarray(arr)
+
+    def _apply_noise(self, img: Image.Image) -> Image.Image:
+        """高斯噪声 — 模拟传感器噪声（比旧版更强）"""
+        try:
+            import numpy as np
+        except ImportError:
+            return img
+        arr = np.array(img, dtype=np.float32)
+        rs = np.random.RandomState(self.rng.randint(0, 2 ** 31))
+        noise = rs.normal(0, self._noise_sigma, arr.shape)
         arr = np.clip(arr + noise, 0, 255).astype(np.uint8)
         return Image.fromarray(arr)
-    except ImportError:
+
+    def _apply_blur(self, img: Image.Image) -> Image.Image:
+        """轻微高斯模糊 — 模拟对焦偏差"""
+        return img.filter(ImageFilter.GaussianBlur(radius=self._blur_radius))
+
+    def _apply_jpeg_cycle(self, img: Image.Image) -> Image.Image:
+        """JPEG 编解码循环 — 引入自然压缩伪影"""
+        if img.mode in ("RGBA", "P"):
+            img = img.convert("RGB")
+        buf = BytesIO()
+        img.save(buf, format="JPEG", quality=self._jpeg_quality)
+        buf.seek(0)
+        return Image.open(buf).convert("RGB")
+
+    def apply_photo_simulation(self, img: Image.Image) -> Image.Image:
+        """
+        完整的拍照模拟流水线。
+
+        执行顺序经过设计：几何变换在前（避免模糊后再变换），
+        像素级变换在后（噪声 / 模糊 / JPEG 作为最终步骤）。
+        """
+        img = self._apply_perspective(img)
+        img = self._apply_rotation(img)
+        img = self._apply_lighting(img)
+        img = self._apply_noise(img)
+        img = self._apply_blur(img)
+        img = self._apply_jpeg_cycle(img)
         return img
 
 
 def image_to_format(img: Image.Image, rng: random.Random,
-                    output_format: str = "png",
-                    noise_intensity: float = 0.008) -> bytes:
-    """将图像转为指定格式字节（含反检测处理）"""
-    img = apply_anti_detection(img, rng, noise_intensity)
+                    output_format: str = "png") -> bytes:
+    """
+    将图像转为指定格式字节（含完整拍照模拟反检测处理）。
+
+    使用 DocumentRandomizer 替代旧版简单噪声注入，
+    应用透视变形 / 旋转 / 光照 / 噪声 / 模糊 / JPEG 循环等
+    全套拍照模拟变换。
+    """
+    randomizer = DocumentRandomizer(rng)
+    img = randomizer.apply_photo_simulation(img)
 
     buf = BytesIO()
     fmt = output_format.lower()
@@ -184,38 +383,3 @@ def seeded_rng(student: "HarvardStudentData") -> random.Random:
     return random.Random(seed)
 
 
-# ============ 美国地址数据 ============
-
-US_ADDRESSES = [
-    {"city": "Boston", "state": "MA", "zip": "02101"},
-    {"city": "Cambridge", "state": "MA", "zip": "02138"},
-    {"city": "New York", "state": "NY", "zip": "10001"},
-    {"city": "Los Angeles", "state": "CA", "zip": "90001"},
-    {"city": "Chicago", "state": "IL", "zip": "60601"},
-    {"city": "San Francisco", "state": "CA", "zip": "94102"},
-    {"city": "Seattle", "state": "WA", "zip": "98101"},
-    {"city": "Denver", "state": "CO", "zip": "80201"},
-    {"city": "Austin", "state": "TX", "zip": "78701"},
-    {"city": "Miami", "state": "FL", "zip": "33101"},
-]
-
-US_STREETS = [
-    "Main St", "Oak Ave", "Maple Dr", "Park Rd", "Cedar Ln",
-    "Elm St", "Pine Ave", "Washington Blvd", "Lincoln Way", "Madison Ave",
-    "Jefferson St", "Adams Rd", "Franklin Dr", "Liberty Ln", "Union St",
-]
-
-
-def generate_us_address(first: str, last: str, rng: random.Random) -> tuple:
-    """生成随机美国地址（4行元组）"""
-    addr = rng.choice(US_ADDRESSES)
-    street_num = rng.randint(100, 9999)
-    street = rng.choice(US_STREETS)
-    apt = f", Apt {rng.randint(1, 999)}" if rng.random() < 0.3 else ""
-
-    return (
-        f"{first} {last}",
-        f"{street_num} {street}{apt}",
-        f"{addr['city']}, {addr['state']} {addr['zip']}",
-        "United States",
-    )
