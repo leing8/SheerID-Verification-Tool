@@ -29,7 +29,7 @@ def harvard_module():
 
 
 @pytest.fixture
-def sample_harvard_data():
-    """返回一个固定的 HarvardStudentData 实例"""
+def sample_harvard_data(sample_vid):
+    """返回基于 sample_vid 的 HarvardStudentData 实例（支持 --vid 参数）"""
     from student_document_factory.schools.harvard.student_data import build
-    return build("test-harvard-fixture-001", "Computer Science (A.B.)")
+    return build(sample_vid, "Computer Science (A.B.)")

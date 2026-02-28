@@ -3,6 +3,7 @@ test_verbose_output.py — 设备指纹完整信息输出测试
 
 运行时使用 -s 参数查看完整输出:
     pytest tests/common/device_fingerprint_factory/test_verbose_output.py -v -s
+    pytest tests/common/device_fingerprint_factory/test_verbose_output.py -v -s --vid=your-id
 """
 
 import pytest
@@ -16,7 +17,7 @@ class TestDeviceFingerprintVerboseOutput:
         identity = factory.create(sample_vid)
 
         print("\n" + "=" * 72)
-        print("  设备指纹完整信息")
+        print(f"  设备指纹完整信息 (VID: {sample_vid})")
         print("=" * 72)
 
         # 基本信息
@@ -82,22 +83,23 @@ class TestDeviceFingerprintVerboseOutput:
 
         print("\n" + "=" * 72)
 
-    def test_multiple_devices_summary(self, factory):
-        """输出多个不同 VID 生成的设备摘要对比"""
+    def test_multiple_devices_summary(self, factory, sample_vid):
+        """输出基于当前 VID 衍生的 10 个设备摘要对比"""
         print("\n" + "=" * 72)
-        print("  多 VID 设备指纹摘要对比")
+        print(f"  多 VID 设备指纹摘要对比 (base: {sample_vid})")
         print("=" * 72)
-        print(f"\n  {'VID':<28} {'Device':<35} {'Screen':<14} {'FP Hash'}")
-        print(f"  {'-'*28} {'-'*35} {'-'*14} {'-'*32}")
+        print(f"\n  {'VID':<40} {'Device':<35} {'Screen':<14} {'FP Hash'}")
+        print(f"  {'-'*40} {'-'*35} {'-'*14} {'-'*32}")
 
         for i in range(10):
-            vid = f"verbose-test-vid-{i:04d}"
+            vid = f"{sample_vid}-{i}"
             identity = factory.create(vid)
             dev = identity.device
             device_name = f"{dev.brand} {dev.model}"
             screen = f"{identity.screen_width}x{identity.screen_height}"
+            vid_display = vid if len(vid) <= 38 else vid[:35] + "..."
             print(
-                f"  {vid:<28} {device_name:<35} {screen:<14} "
+                f"  {vid_display:<40} {device_name:<35} {screen:<14} "
                 f"{identity.fingerprint_hash}"
             )
 
