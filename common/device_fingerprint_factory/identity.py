@@ -67,8 +67,6 @@ class DeviceIdentity:
         - User-Agent ↔ platform ↔ sec-ch-ua-platform
         - Chrome 版本 ↔ sec-ch-ua
         """
-        is_mobile = self.device.device_type == "mobile"
-
         headers = {
             "accept": "application/json, text/plain, */*",
             "accept-encoding": "gzip, deflate, br, zstd",
@@ -76,7 +74,7 @@ class DeviceIdentity:
             "cache-control": "no-cache",
             "pragma": "no-cache",
             "sec-ch-ua": self.sec_ch_ua,
-            "sec-ch-ua-mobile": "?1" if is_mobile else "?0",
+            "sec-ch-ua-mobile": "?0",
             "sec-ch-ua-platform": self.sec_ch_ua_platform,
             "sec-fetch-dest": "empty",
             "sec-fetch-mode": "cors",

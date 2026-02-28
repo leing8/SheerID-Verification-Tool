@@ -1,7 +1,7 @@
 """
-DeviceIdentityFactory — 确定性设备身份工厂
+DeviceIdentityFactory — 确定性设备身份工厂 (仅桌面端)
 
-传入 verificationId 后确定性生成完整的设备身份。
+传入 verificationId 后确定性生成完整的桌面设备身份。
 同一 verificationId → 始终返回相同设备和指纹。
 不同 verificationId 即使选中同一设备 → 混淆产生差异。
 """
@@ -9,9 +9,7 @@ DeviceIdentityFactory — 确定性设备身份工厂
 from typing import Optional
 
 from .catalog import (
-    ALL_DESKTOP_DEVICES,
     ALL_DEVICES,
-    ALL_MOBILE_DEVICES,
     DEVICES_BY_BRAND,
     DeviceProfile,
 )
@@ -34,7 +32,7 @@ from .us_timezones import select_timezone
 
 class DeviceIdentityFactory:
     """
-    确定性设备身份工厂。
+    确定性桌面设备身份工厂。
 
     用法:
         factory = DeviceIdentityFactory()
@@ -46,16 +44,14 @@ class DeviceIdentityFactory:
     def create(
         self,
         verification_id: str,
-        device_type: str = "desktop",
         brand: Optional[str] = None,
     ) -> DeviceIdentity:
         """
-        创建绑定到 verificationId 的设备身份。
+        创建绑定到 verificationId 的桌面设备身份。
 
         Args:
             verification_id: 唯一验证 ID
-            device_type: "desktop" 或 "mobile"
-            brand: 可选品牌过滤 ("dell", "lenovo", "apple", "samsung")
+            brand: 可选品牌过滤 ("dell", "lenovo", "apple")
 
         Returns:
             DeviceIdentity: 不可变的设备身份实例
@@ -63,8 +59,8 @@ class DeviceIdentityFactory:
         if not verification_id:
             raise ValueError("verification_id 不能为空")
 
-        # 1. 确定性选择设备
-        device = self._select_device(verification_id, device_type, brand)
+        # 1. 确定性选择桌面设备
+        device = self._select_device(verification_id, brand)
 
         # 2. 确定性选择时区 (自动处理 DST)
         timezone = select_timezone(verification_id)
@@ -143,37 +139,17 @@ class DeviceIdentityFactory:
     def _select_device(
         self,
         verification_id: str,
-        device_type: str,
         brand: Optional[str],
     ) -> DeviceProfile:
-        """确定性选择设备"""
-        # 确定候选设备集
+        """确定性选择桌面设备"""
         if brand:
             brand_lower = brand.lower()
-            # 品牌映射: "iphone" → "apple" 的移动设备
-            if brand_lower == "iphone":
-                candidates = [
-                    d for d in DEVICES_BY_BRAND.get("apple", [])
-                    if d.os_family == "ios"
-                ]
-            elif brand_lower in DEVICES_BY_BRAND:
-                candidates = DEVICES_BY_BRAND[brand_lower]
-                if device_type == "desktop":
-                    candidates = [d for d in candidates if d.device_type == "desktop"]
-                elif device_type == "mobile":
-                    candidates = [d for d in candidates if d.device_type == "mobile"]
-            else:
-                candidates = ALL_DESKTOP_DEVICES if device_type == "desktop" else ALL_MOBILE_DEVICES
+            candidates = DEVICES_BY_BRAND.get(brand_lower, ALL_DEVICES)
         else:
-            if device_type == "mobile":
-                candidates = ALL_MOBILE_DEVICES
-            elif device_type == "desktop":
-                candidates = ALL_DESKTOP_DEVICES
-            else:
-                candidates = ALL_DEVICES
+            candidates = ALL_DEVICES
 
         if not candidates:
-            candidates = ALL_DESKTOP_DEVICES
+            candidates = ALL_DEVICES
 
         # 确定性选择
         seed = _deterministic_seed(verification_id, "device_select")

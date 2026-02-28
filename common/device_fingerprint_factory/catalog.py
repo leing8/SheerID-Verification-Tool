@@ -627,270 +627,213 @@ APPLE_MBP14_M4_16G = DeviceProfile(
 )
 
 # ============================================================
-# 移动设备 — Apple iPhone
+# 桌面设备 — HP 惠普
 # ============================================================
 
-IPHONE_15 = DeviceProfile(
-    brand="Apple",
-    model="iPhone 15",
-    config_label="A16/6GB",
-    device_type="mobile",
-    os_family="ios",
-    screen_width=393,
-    screen_height=852,
-    color_depth=32,
-    pixel_ratio=3.0,
-    cpu_cores=6,
-    device_memory=6,
-    max_touch_points=5,
-    platform="iPhone",
-    ua_template="Mozilla/5.0 (iPhone; CPU iPhone OS 18_3 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/{chrome_ver} Mobile/15E148 Safari/604.1",
-    sec_ch_ua_platform='"iOS"',
-    webgl_vendor="Apple Inc.",
-    webgl_renderer="Apple GPU",
-    tags=["popular", "2023"],
-)
+# --- HP Pavilion 15 (2023-2024, 最畅销学生/入门笔记本) ---
+# 15.6" FHD IPS 1920x1080, Intel 13th Gen, Intel Iris Xe Graphics
 
-IPHONE_15_PRO = DeviceProfile(
-    brand="Apple",
-    model="iPhone 15 Pro",
-    config_label="A17Pro/8GB",
-    device_type="mobile",
-    os_family="ios",
-    screen_width=393,
-    screen_height=852,
-    color_depth=32,
-    pixel_ratio=3.0,
-    cpu_cores=6,
-    device_memory=8,
-    max_touch_points=5,
-    platform="iPhone",
-    ua_template="Mozilla/5.0 (iPhone; CPU iPhone OS 18_3 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/{chrome_ver} Mobile/15E148 Safari/604.1",
-    sec_ch_ua_platform='"iOS"',
-    webgl_vendor="Apple Inc.",
-    webgl_renderer="Apple GPU",
-    tags=["popular", "2023"],
-)
-
-IPHONE_15_PRO_MAX = DeviceProfile(
-    brand="Apple",
-    model="iPhone 15 Pro Max",
-    config_label="A17Pro/8GB",
-    device_type="mobile",
-    os_family="ios",
-    screen_width=430,
-    screen_height=932,
-    color_depth=32,
-    pixel_ratio=3.0,
-    cpu_cores=6,
-    device_memory=8,
-    max_touch_points=5,
-    platform="iPhone",
-    ua_template="Mozilla/5.0 (iPhone; CPU iPhone OS 18_3 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/{chrome_ver} Mobile/15E148 Safari/604.1",
-    sec_ch_ua_platform='"iOS"',
-    webgl_vendor="Apple Inc.",
-    webgl_renderer="Apple GPU",
-    tags=["popular", "2023"],
-)
-
-IPHONE_14 = DeviceProfile(
-    brand="Apple",
-    model="iPhone 14",
-    config_label="A15/6GB",
-    device_type="mobile",
-    os_family="ios",
-    screen_width=390,
-    screen_height=844,
-    color_depth=32,
-    pixel_ratio=3.0,
-    cpu_cores=6,
-    device_memory=6,
-    max_touch_points=5,
-    platform="iPhone",
-    ua_template="Mozilla/5.0 (iPhone; CPU iPhone OS 18_3 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/{chrome_ver} Mobile/15E148 Safari/604.1",
-    sec_ch_ua_platform='"iOS"',
-    webgl_vendor="Apple Inc.",
-    webgl_renderer="Apple GPU",
-    tags=["popular", "2023"],
-)
-
-IPHONE_14_PRO = DeviceProfile(
-    brand="Apple",
-    model="iPhone 14 Pro",
-    config_label="A16/6GB",
-    device_type="mobile",
-    os_family="ios",
-    screen_width=393,
-    screen_height=852,
-    color_depth=32,
-    pixel_ratio=3.0,
-    cpu_cores=6,
-    device_memory=6,
-    max_touch_points=5,
-    platform="iPhone",
-    ua_template="Mozilla/5.0 (iPhone; CPU iPhone OS 18_3 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/{chrome_ver} Mobile/15E148 Safari/604.1",
-    sec_ch_ua_platform='"iOS"',
-    webgl_vendor="Apple Inc.",
-    webgl_renderer="Apple GPU",
-    tags=["2023"],
-)
-
-IPHONE_14_PRO_MAX = DeviceProfile(
-    brand="Apple",
-    model="iPhone 14 Pro Max",
-    config_label="A16/6GB",
-    device_type="mobile",
-    os_family="ios",
-    screen_width=430,
-    screen_height=932,
-    color_depth=32,
-    pixel_ratio=3.0,
-    cpu_cores=6,
-    device_memory=6,
-    max_touch_points=5,
-    platform="iPhone",
-    ua_template="Mozilla/5.0 (iPhone; CPU iPhone OS 18_3 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/{chrome_ver} Mobile/15E148 Safari/604.1",
-    sec_ch_ua_platform='"iOS"',
-    webgl_vendor="Apple Inc.",
-    webgl_renderer="Apple GPU",
-    tags=["2023"],
-)
-
-# ============================================================
-# 移动设备 — Samsung Galaxy
-# ============================================================
-
-SAMSUNG_S24 = DeviceProfile(
-    brand="Samsung",
-    model="Galaxy S24",
-    config_label="SD8Gen3/8GB",
-    device_type="mobile",
-    os_family="android",
-    screen_width=360,
-    screen_height=780,
+HP_PAVILION_15_I5_8G = DeviceProfile(
+    brand="HP",
+    model="Pavilion 15",
+    config_label="i5-1335U/8GB",
+    device_type="desktop",
+    os_family="windows",
+    screen_width=1920,
+    screen_height=1080,
     color_depth=24,
-    pixel_ratio=3.0,
-    cpu_cores=8,
+    pixel_ratio=1.0,
+    cpu_cores=10,
     device_memory=8,
-    max_touch_points=5,
-    platform="Linux armv81",
-    ua_template="Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/{chrome_ver} Mobile Safari/537.36",
-    sec_ch_ua_platform='"Android"',
-    webgl_vendor="Qualcomm",
-    webgl_renderer="Adreno (TM) 750",
-    tags=["popular", "2024"],
-)
-
-SAMSUNG_S24_ULTRA = DeviceProfile(
-    brand="Samsung",
-    model="Galaxy S24 Ultra",
-    config_label="SD8Gen3/12GB",
-    device_type="mobile",
-    os_family="android",
-    screen_width=360,
-    screen_height=780,
-    color_depth=24,
-    pixel_ratio=3.5,
-    cpu_cores=8,
-    device_memory=12,
-    max_touch_points=5,
-    platform="Linux armv81",
-    ua_template="Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/{chrome_ver} Mobile Safari/537.36",
-    sec_ch_ua_platform='"Android"',
-    webgl_vendor="Qualcomm",
-    webgl_renderer="Adreno (TM) 750",
-    tags=["popular", "2024"],
-)
-
-SAMSUNG_A54 = DeviceProfile(
-    brand="Samsung",
-    model="Galaxy A54 5G",
-    config_label="Exynos1380/8GB",
-    device_type="mobile",
-    os_family="android",
-    screen_width=360,
-    screen_height=780,
-    color_depth=24,
-    pixel_ratio=3.0,
-    cpu_cores=8,
-    device_memory=8,
-    max_touch_points=5,
-    platform="Linux armv81",
-    ua_template="Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/{chrome_ver} Mobile Safari/537.36",
-    sec_ch_ua_platform='"Android"',
-    webgl_vendor="ARM",
-    webgl_renderer="Mali-G68",
+    max_touch_points=0,
+    platform="Win32",
+    ua_template="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/{chrome_ver} Safari/537.36",
+    sec_ch_ua_platform='"Windows"',
+    webgl_vendor="Google Inc. (Intel)",
+    webgl_renderer="ANGLE (Intel, Intel(R) Iris(R) Xe Graphics, D3D11)",
     tags=["popular", "budget", "2023"],
 )
 
-SAMSUNG_S23 = DeviceProfile(
-    brand="Samsung",
-    model="Galaxy S23",
-    config_label="SD8Gen2/8GB",
-    device_type="mobile",
-    os_family="android",
-    screen_width=360,
-    screen_height=780,
+HP_PAVILION_15_I5_16G = DeviceProfile(
+    brand="HP",
+    model="Pavilion 15",
+    config_label="i5-1335U/16GB",
+    device_type="desktop",
+    os_family="windows",
+    screen_width=1920,
+    screen_height=1080,
     color_depth=24,
-    pixel_ratio=3.0,
-    cpu_cores=8,
-    device_memory=8,
-    max_touch_points=5,
-    platform="Linux armv81",
-    ua_template="Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/{chrome_ver} Mobile Safari/537.36",
-    sec_ch_ua_platform='"Android"',
-    webgl_vendor="Qualcomm",
-    webgl_renderer="Adreno (TM) 740",
+    pixel_ratio=1.0,
+    cpu_cores=10,
+    device_memory=16,
+    max_touch_points=0,
+    platform="Win32",
+    ua_template="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/{chrome_ver} Safari/537.36",
+    sec_ch_ua_platform='"Windows"',
+    webgl_vendor="Google Inc. (Intel)",
+    webgl_renderer="ANGLE (Intel, Intel(R) Iris(R) Xe Graphics, D3D11)",
     tags=["popular", "2023"],
 )
 
-SAMSUNG_S23_ULTRA = DeviceProfile(
-    brand="Samsung",
-    model="Galaxy S23 Ultra",
-    config_label="SD8Gen2/12GB",
-    device_type="mobile",
-    os_family="android",
-    screen_width=360,
-    screen_height=780,
+HP_PAVILION_15_I7_16G = DeviceProfile(
+    brand="HP",
+    model="Pavilion 15",
+    config_label="i7-1355U/16GB",
+    device_type="desktop",
+    os_family="windows",
+    screen_width=1920,
+    screen_height=1080,
     color_depth=24,
-    pixel_ratio=3.5,
-    cpu_cores=8,
-    device_memory=12,
-    max_touch_points=5,
-    platform="Linux armv81",
-    ua_template="Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/{chrome_ver} Mobile Safari/537.36",
-    sec_ch_ua_platform='"Android"',
-    webgl_vendor="Qualcomm",
-    webgl_renderer="Adreno (TM) 740",
-    tags=["2023"],
+    pixel_ratio=1.25,
+    cpu_cores=10,
+    device_memory=16,
+    max_touch_points=0,
+    platform="Win32",
+    ua_template="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/{chrome_ver} Safari/537.36",
+    sec_ch_ua_platform='"Windows"',
+    webgl_vendor="Google Inc. (Intel)",
+    webgl_renderer="ANGLE (Intel, Intel(R) Iris(R) Xe Graphics, D3D11)",
+    tags=["popular", "2023"],
 )
 
-SAMSUNG_A15 = DeviceProfile(
-    brand="Samsung",
-    model="Galaxy A15",
-    config_label="Helio-G99/6GB",
-    device_type="mobile",
-    os_family="android",
-    screen_width=360,
-    screen_height=780,
+# --- HP Spectre x360 14 (2024, 最畅销高端笔记本) ---
+# 14" 2880x1800 OLED, Intel Core Ultra (Meteor Lake), Intel Arc Graphics
+
+HP_SPECTRE_X360_14_U5_16G = DeviceProfile(
+    brand="HP",
+    model="Spectre x360 14",
+    config_label="Ultra5-125H/16GB",
+    device_type="desktop",
+    os_family="windows",
+    screen_width=2880,
+    screen_height=1800,
     color_depth=24,
-    pixel_ratio=3.0,
-    cpu_cores=8,
-    device_memory=6,
-    max_touch_points=5,
-    platform="Linux armv81",
-    ua_template="Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/{chrome_ver} Mobile Safari/537.36",
-    sec_ch_ua_platform='"Android"',
-    webgl_vendor="ARM",
-    webgl_renderer="Mali-G57 MC2",
-    tags=["popular", "budget", "2024"],
+    pixel_ratio=2.0,
+    cpu_cores=14,
+    device_memory=16,
+    max_touch_points=10,
+    platform="Win32",
+    ua_template="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/{chrome_ver} Safari/537.36",
+    sec_ch_ua_platform='"Windows"',
+    webgl_vendor="Google Inc. (Intel)",
+    webgl_renderer="ANGLE (Intel, Intel(R) Arc(TM) Graphics, D3D11)",
+    tags=["popular", "premium", "2024"],
 )
 
+HP_SPECTRE_X360_14_U7_16G = DeviceProfile(
+    brand="HP",
+    model="Spectre x360 14",
+    config_label="Ultra7-155H/16GB",
+    device_type="desktop",
+    os_family="windows",
+    screen_width=2880,
+    screen_height=1800,
+    color_depth=24,
+    pixel_ratio=2.0,
+    cpu_cores=16,
+    device_memory=16,
+    max_touch_points=10,
+    platform="Win32",
+    ua_template="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/{chrome_ver} Safari/537.36",
+    sec_ch_ua_platform='"Windows"',
+    webgl_vendor="Google Inc. (Intel)",
+    webgl_renderer="ANGLE (Intel, Intel(R) Arc(TM) Graphics, D3D11)",
+    tags=["popular", "premium", "2024"],
+)
+
+HP_SPECTRE_X360_14_U7_32G = DeviceProfile(
+    brand="HP",
+    model="Spectre x360 14",
+    config_label="Ultra7-155H/32GB",
+    device_type="desktop",
+    os_family="windows",
+    screen_width=2880,
+    screen_height=1800,
+    color_depth=24,
+    pixel_ratio=2.0,
+    cpu_cores=16,
+    device_memory=32,
+    max_touch_points=10,
+    platform="Win32",
+    ua_template="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/{chrome_ver} Safari/537.36",
+    sec_ch_ua_platform='"Windows"',
+    webgl_vendor="Google Inc. (Intel)",
+    webgl_renderer="ANGLE (Intel, Intel(R) Arc(TM) Graphics, D3D11)",
+    tags=["premium", "2024"],
+)
+
+# --- HP Envy 16 (2023-2024, 最畅销创作者笔记本) ---
+# 16" 2560x1600 IPS, Intel 13th Gen H-series, Intel Arc A370M
+
+HP_ENVY_16_I7_16G = DeviceProfile(
+    brand="HP",
+    model="Envy 16",
+    config_label="i7-13700H/16GB",
+    device_type="desktop",
+    os_family="windows",
+    screen_width=2560,
+    screen_height=1600,
+    color_depth=24,
+    pixel_ratio=1.5,
+    cpu_cores=14,
+    device_memory=16,
+    max_touch_points=10,
+    platform="Win32",
+    ua_template="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/{chrome_ver} Safari/537.36",
+    sec_ch_ua_platform='"Windows"',
+    webgl_vendor="Google Inc. (Intel)",
+    webgl_renderer="ANGLE (Intel, Intel(R) Arc(TM) A370M Graphics, D3D11)",
+    tags=["popular", "creator", "2023"],
+)
+
+HP_ENVY_16_I7_32G = DeviceProfile(
+    brand="HP",
+    model="Envy 16",
+    config_label="i7-13700H/32GB",
+    device_type="desktop",
+    os_family="windows",
+    screen_width=2560,
+    screen_height=1600,
+    color_depth=24,
+    pixel_ratio=1.5,
+    cpu_cores=14,
+    device_memory=32,
+    max_touch_points=10,
+    platform="Win32",
+    ua_template="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/{chrome_ver} Safari/537.36",
+    sec_ch_ua_platform='"Windows"',
+    webgl_vendor="Google Inc. (Intel)",
+    webgl_renderer="ANGLE (Intel, Intel(R) Arc(TM) A370M Graphics, D3D11)",
+    tags=["creator", "2023"],
+)
+
+HP_ENVY_16_I9_32G = DeviceProfile(
+    brand="HP",
+    model="Envy 16",
+    config_label="i9-13900H/32GB",
+    device_type="desktop",
+    os_family="windows",
+    screen_width=2560,
+    screen_height=1600,
+    color_depth=24,
+    pixel_ratio=1.5,
+    cpu_cores=14,
+    device_memory=32,
+    max_touch_points=10,
+    platform="Win32",
+    ua_template="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/{chrome_ver} Safari/537.36",
+    sec_ch_ua_platform='"Windows"',
+    webgl_vendor="Google Inc. (Intel)",
+    webgl_renderer="ANGLE (Intel, Intel(R) Arc(TM) A370M Graphics, D3D11)",
+    tags=["creator", "pro", "2023"],
+)
+
+
 # ============================================================
-# 设备集合
+# 设备集合 (仅桌面端)
 # ============================================================
 
-ALL_DESKTOP_DEVICES: List[DeviceProfile] = [
+ALL_DEVICES: List[DeviceProfile] = [
     # Dell
     DELL_XPS_15_9530_I7, DELL_XPS_15_9530_I9, DELL_XPS_15_9530_I5,
     DELL_INSPIRON_15_R5_8G, DELL_INSPIRON_15_R5_16G, DELL_INSPIRON_15_R7_16G,
@@ -903,18 +846,11 @@ ALL_DESKTOP_DEVICES: List[DeviceProfile] = [
     APPLE_MBA13_M3_8G, APPLE_MBA13_M3_16G, APPLE_MBA13_M3_24G,
     APPLE_MBA15_M3_16G, APPLE_MBA15_M3_24G, APPLE_MBA15_M3_8G,
     APPLE_MBP14_M3PRO_18G, APPLE_MBP14_M3PRO_36G, APPLE_MBP14_M4_16G,
+    # HP
+    HP_PAVILION_15_I5_8G, HP_PAVILION_15_I5_16G, HP_PAVILION_15_I7_16G,
+    HP_SPECTRE_X360_14_U5_16G, HP_SPECTRE_X360_14_U7_16G, HP_SPECTRE_X360_14_U7_32G,
+    HP_ENVY_16_I7_16G, HP_ENVY_16_I7_32G, HP_ENVY_16_I9_32G,
 ]
-
-ALL_MOBILE_DEVICES: List[DeviceProfile] = [
-    # iPhone
-    IPHONE_15, IPHONE_15_PRO, IPHONE_15_PRO_MAX,
-    IPHONE_14, IPHONE_14_PRO, IPHONE_14_PRO_MAX,
-    # Samsung
-    SAMSUNG_S24, SAMSUNG_S24_ULTRA, SAMSUNG_A54,
-    SAMSUNG_S23, SAMSUNG_S23_ULTRA, SAMSUNG_A15,
-]
-
-ALL_DEVICES: List[DeviceProfile] = ALL_DESKTOP_DEVICES + ALL_MOBILE_DEVICES
 
 # 按品牌索引
 DEVICES_BY_BRAND = {}
@@ -924,8 +860,3 @@ for _dev in ALL_DEVICES:
         DEVICES_BY_BRAND[_brand_key] = []
     DEVICES_BY_BRAND[_brand_key].append(_dev)
 
-# 按类型索引
-DEVICES_BY_TYPE = {
-    "desktop": ALL_DESKTOP_DEVICES,
-    "mobile": ALL_MOBILE_DEVICES,
-}

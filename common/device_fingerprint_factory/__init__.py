@@ -21,7 +21,7 @@ device_fingerprint_factory — 设备指纹工厂
     assert identity.fingerprint_hash == identity2.fingerprint_hash
 """
 
-from .catalog import ALL_DESKTOP_DEVICES, ALL_DEVICES, ALL_MOBILE_DEVICES, DeviceProfile
+from .catalog import ALL_DEVICES, DEVICES_BY_BRAND, DeviceProfile
 from .factory import DeviceIdentityFactory
 from .identity import DeviceIdentity
 
@@ -30,6 +30,4 @@ __all__ = [
     "DeviceIdentity",
     "DeviceProfile",
     "ALL_DEVICES",
-    "ALL_DESKTOP_DEVICES",
-    "ALL_MOBILE_DEVICES",
 ]

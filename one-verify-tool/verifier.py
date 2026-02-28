@@ -37,7 +37,7 @@ class GeminiVerifier:
 
         # 1. 创建 DeviceIdentity
         factory = DeviceIdentityFactory()
-        self.identity = factory.create(self.vid, device_type="desktop")
+        self.identity = factory.create(self.vid)
         print(f"[信息] 设备身份: {self.identity.device.brand} {self.identity.device.model}")
 
         # 2. 基于 DeviceIdentity 的 impersonate_key 创建 TLS 会话
