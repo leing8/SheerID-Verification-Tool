@@ -1,14 +1,14 @@
 """
 DeviceIdentity — 不可变的设备身份
 
-绑定到特定 verificationId 的完整设备身份，包含全部 15 项自洽指纹信号。
+绑定到特定 verificationId 的完整设备身份，包含全部指纹信号。
 """
 
 import base64
 import json
 import time
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from .catalog import DeviceProfile
 
@@ -22,42 +22,27 @@ class DeviceIdentity:
     device: DeviceProfile
 
     # Chrome 版本
-    chrome_version: str
+    chrome_version: str        # 完整版本号 (如 "131.0.6778.140")
+    impersonate_key: str       # curl_cffi impersonate 键 (如 "chrome131")
 
     # 时区
     timezone_name: str
     timezone_offset: int
 
-    # === 15 项信号 ===
-    # 1. Canvas 指纹
+    # === 指纹信号 ===
     canvas_hash: str
-    # 2. WebGL vendor
     webgl_vendor: str
-    # 3. WebGL renderer
     webgl_renderer: str
-    # 4. AudioContext 指纹
     audio_fingerprint: str
-    # 5. 屏幕宽度
     screen_width: int
-    # 6. 屏幕高度
     screen_height: int
-    # 7. 色深
     color_depth: int
-    # 8. 设备像素比
     pixel_ratio: float
-    # 9. 时区偏移
-    # (已包含在 timezone_offset)
-    # 10. 语言
     language: str
-    # 11. 平台
     platform: str
-    # 12. CPU 核心数
     cpu_cores: int
-    # 13. 设备内存
     device_memory: int
-    # 14. 触屏支持
     max_touch_points: int
-    # 15. 会话 ID
     session_id: str
 
     # === 衍生值 ===
@@ -69,6 +54,10 @@ class DeviceIdentity:
     user_agent: str
     sec_ch_ua: str
     sec_ch_ua_platform: str
+
+    # === NewRelic 追踪 (同一身份复用 trace_id) ===
+    _trace_id: str = field(default_factory=lambda: uuid.uuid4().hex[:32], repr=False)
+    _span_counter: int = field(default=0, repr=False)
 
     def get_headers(self, for_sheerid: bool = True) -> dict:
         """
@@ -109,9 +98,20 @@ class DeviceIdentity:
         return headers
 
     def _generate_newrelic_headers(self) -> dict:
-        """生成 NewRelic 追踪头"""
-        trace_id = uuid.uuid4().hex[:32]
-        span_id = uuid.uuid4().hex[:16]
+        """
+        生成 NewRelic 追踪头。
+
+        同一 DeviceIdentity 复用 trace_id (模拟同一页面加载),
+        span_id 每次递增 (模拟同一 trace 下的不同 span)。
+        """
+        # 使用 object.__setattr__ 绕过 frozen dataclass 限制更新计数器
+        current = self._span_counter
+        object.__setattr__(self, '_span_counter', current + 1)
+
+        span_id = uuid.uuid5(
+            uuid.NAMESPACE_DNS,
+            f"{self._trace_id}:{current}"
+        ).hex[:16]
         timestamp = int(time.time() * 1000)
 
         payload = {
@@ -121,14 +121,14 @@ class DeviceIdentity:
                 "ac": "364029",
                 "ap": "134291347",
                 "id": span_id,
-                "tr": trace_id,
+                "tr": self._trace_id,
                 "ti": timestamp,
             },
         }
 
         return {
             "newrelic": base64.b64encode(json.dumps(payload).encode()).decode(),
-            "traceparent": f"00-{trace_id}-{span_id}-01",
+            "traceparent": f"00-{self._trace_id}-{span_id}-01",
             "tracestate": f"364029@nr=0-1-364029-134291347-{span_id}----{timestamp}",
         }
 
@@ -141,6 +141,7 @@ class DeviceIdentity:
             f"  screen={self.screen_width}x{self.screen_height}@{self.pixel_ratio}x\n"
             f"  cores={self.cpu_cores}, mem={self.device_memory}GB\n"
             f"  tz={self.timezone_name} (UTC{self.timezone_offset:+d})\n"
+            f"  chrome={self.chrome_version} (impersonate={self.impersonate_key})\n"
             f"  fingerprint={self.fingerprint_hash}\n"
             f")"
         )

@@ -26,9 +26,10 @@ from .signals import (
     generate_sec_ch_ua,
     generate_session_id,
     generate_webgl_hash,
+    get_chrome_full_version,
     select_chrome_version,
 )
-from .us_timezones import US_MAINLAND_TIMEZONES
+from .us_timezones import select_timezone
 
 
 class DeviceIdentityFactory:
@@ -65,11 +66,12 @@ class DeviceIdentityFactory:
         # 1. 确定性选择设备
         device = self._select_device(verification_id, device_type, brand)
 
-        # 2. 确定性选择时区
-        timezone = self._select_timezone(verification_id)
+        # 2. 确定性选择时区 (自动处理 DST)
+        timezone = select_timezone(verification_id)
 
-        # 3. 确定性选择 Chrome 版本
-        chrome_ver = select_chrome_version(verification_id)
+        # 3. 确定性选择 Chrome 版本 (返回 curl_cffi impersonate 键)
+        impersonate_key = select_chrome_version(verification_id)
+        chrome_ver = get_chrome_full_version(impersonate_key)
 
         # 4. 生成设备唯一键 (用于信号混淆)
         device_key = f"{device.brand}:{device.model}:{device.config_label}"
@@ -80,27 +82,32 @@ class DeviceIdentityFactory:
         webgl_hash = generate_webgl_hash(verification_id, device_key)
         font_hash = generate_font_hash(verification_id, device.os_family)
         session_id = generate_session_id(verification_id)
-        sec_ch_ua = generate_sec_ch_ua(chrome_ver)
+        sec_ch_ua = generate_sec_ch_ua(impersonate_key)
 
         # 6. 生成 User-Agent
         user_agent = device.ua_template.format(chrome_ver=chrome_ver)
 
-        # 7. 计算最终指纹哈希 (15 项信号拼接)
+        # 7. 计算最终指纹哈希
+        #    使用 MurmurHash3 x64_128 (seed=31), 分隔符 ~~~
+        #    信号项与 SheerID learn.js GFPItems 对齐
         fingerprint_hash = compute_fingerprint_hash([
-            device.platform,                              # 1. 平台
-            f"{device.screen_width}x{device.screen_height}",  # 2-3. 屏幕
-            str(device.color_depth),                       # 4. 色深
-            str(device.pixel_ratio),                       # 5. 像素比
-            str(timezone["offset"]),                        # 6. 时区
-            "en-US",                                       # 7. 语言
-            str(device.cpu_cores),                          # 8. CPU
-            str(device.device_memory),                      # 9. 内存
-            str(device.max_touch_points),                   # 10. 触屏
-            canvas_hash,                                    # 11. Canvas
-            device.webgl_vendor,                            # 12. WebGL vendor
-            device.webgl_renderer,                          # 13. WebGL renderer
-            audio_fp,                                       # 14. Audio
-            session_id,                                     # 15. 会话
+            user_agent,                                       # dtb: User-Agent
+            "en-US",                                          # dtc: 语言
+            str(device.color_depth),                          # dtd: 色深
+            str(device.pixel_ratio),                          # dte: 设备像素比
+            str(device.cpu_cores),                            # dtf: 硬件并发数
+            str(device.screen_width),                         # dtg: 屏幕宽度
+            str(device.screen_height),                        # dth: 屏幕高度
+            str(timezone["offset"] * -60),                    # dti: 时区偏移 (分钟, 正值)
+            device.platform,                                  # dtj: navigator.platform
+            str(device.max_touch_points),                     # dtk: 触屏点数
+            str(device.device_memory),                        # dtl: 设备内存
+            device.webgl_vendor,                              # dtn: WebGL vendor
+            device.webgl_renderer,                            # dto: WebGL renderer
+            canvas_hash,                                      # dtr: Canvas 指纹哈希
+            webgl_hash,                                       # dtt: WebGL 扩展哈希
+            audio_fp,                                         # dtll: AudioContext 指纹
+            font_hash,                                        # 字体哈希
         ])
 
         # 8. 构建不可变的 DeviceIdentity
@@ -108,6 +115,7 @@ class DeviceIdentityFactory:
             verification_id=verification_id,
             device=device,
             chrome_version=chrome_ver,
+            impersonate_key=impersonate_key,
             timezone_name=timezone["name"],
             timezone_offset=timezone["offset"],
             canvas_hash=canvas_hash,
@@ -171,9 +179,3 @@ class DeviceIdentityFactory:
         seed = _deterministic_seed(verification_id, "device_select")
         idx = _seed_to_int(seed, len(candidates))
         return candidates[idx]
-
-    def _select_timezone(self, verification_id: str) -> dict:
-        """确定性选择美国大陆时区"""
-        seed = _deterministic_seed(verification_id, "timezone_select")
-        idx = _seed_to_int(seed, len(US_MAINLAND_TIMEZONES))
-        return US_MAINLAND_TIMEZONES[idx]

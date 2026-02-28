@@ -1,25 +1,74 @@
 """
 指纹信号生成器
 
-基于真实设备档案 + verificationId HMAC 种子生成 15 项浏览器指纹信号。
+基于真实设备档案 + verificationId HMAC 种子生成浏览器指纹信号。
 同一设备 + 不同 verificationId → 不同信号值 (Canvas/Audio/WebGL 哈希)
+
+SheerID 指纹算法 (逆向自 fd.sheerid.com/learn.js):
+- 哈希: MurmurHash3 x64_128, seed=31
+- 分隔符: ~~~
+- 输出: 32 位十六进制字符串
 """
 
 import hashlib
 import hmac
 import struct
 
+try:
+    import mmh3
+except ImportError:
+    raise ImportError(
+        "mmh3 是必需依赖，用于生成与 SheerID 一致的 MurmurHash3 指纹哈希。\n"
+        "安装: pip install mmh3"
+    )
+
 # 用于 HMAC 的固定密钥 (可配置)
 _HMAC_KEY = b"device-fingerprint-salt-v1"
 
-# Chrome 版本 — 必须与 curl_cffi 支持的模拟版本对应
-# curl_cffi impersonate: chrome131, chrome130, chrome124, chrome120
-CHROME_VERSIONS = [
-    "131.0.0.0",
-    "130.0.0.0",
-    "124.0.0.0",
-    "120.0.0.0",
+# ============================================================
+# Chrome 版本配置
+# 版本号必须与 curl_cffi impersonate 对应
+# curl_cffi v0.14.0 支持: chrome124, chrome130, chrome131, chrome133, chrome136, chrome145
+# ============================================================
+
+# 每个版本条目: (精确版本号, curl_cffi impersonate 名称, sec-ch-ua 字符串)
+# sec-ch-ua 来源: 真实 Chrome 浏览器抓包，品牌顺序和 Not-A.Brand 格式各版本不同
+CHROME_VERSION_MAP = {
+    "chrome136": {
+        "version": "136.0.7103.93",
+        "sec_ch_ua": '"Chromium";v="136", "Google Chrome";v="136", "Not?A_Brand";v="99"',
+    },
+    "chrome133": {
+        "version": "133.0.6943.142",
+        "sec_ch_ua": '"Not(A:Brand";v="99", "Google Chrome";v="133", "Chromium";v="133"',
+    },
+    "chrome131": {
+        "version": "131.0.6778.140",
+        "sec_ch_ua": '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
+    },
+    "chrome130": {
+        "version": "130.0.6723.117",
+        "sec_ch_ua": '"Chromium";v="130", "Google Chrome";v="130", "Not?A_Brand";v="99"',
+    },
+    "chrome124": {
+        "version": "124.0.6367.201",
+        "sec_ch_ua": '"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"',
+    },
+}
+
+# 按权重排列 (最新版本最高概率)
+CHROME_IMPERSONATE_KEYS = [
+    "chrome136",   # 权重高: 最新
+    "chrome136",   # 重复 = 提高概率
+    "chrome133",   # 权重中
+    "chrome133",
+    "chrome131",   # 权重中
+    "chrome130",   # 权重低
+    "chrome124",   # 权重低
 ]
+
+# 向后兼容: 精确版本号列表 (供外部引用)
+CHROME_VERSIONS = [v["version"] for v in CHROME_VERSION_MAP.values()]
 
 
 def _deterministic_seed(verification_id: str, component: str) -> bytes:
@@ -45,10 +94,25 @@ def _seed_to_float(seed: bytes, low: float, high: float) -> float:
 
 
 def select_chrome_version(verification_id: str) -> str:
-    """确定性选择 Chrome 版本"""
+    """
+    确定性选择 Chrome 版本。
+
+    Returns:
+        curl_cffi impersonate 键名 (如 "chrome131")
+    """
     seed = _deterministic_seed(verification_id, "chrome_version")
-    idx = _seed_to_int(seed, len(CHROME_VERSIONS))
-    return CHROME_VERSIONS[idx]
+    idx = _seed_to_int(seed, len(CHROME_IMPERSONATE_KEYS))
+    return CHROME_IMPERSONATE_KEYS[idx]
+
+
+def get_chrome_full_version(impersonate_key: str) -> str:
+    """获取完整 Chrome 版本号 (如 '131.0.6778.140')"""
+    return CHROME_VERSION_MAP[impersonate_key]["version"]
+
+
+def generate_sec_ch_ua(impersonate_key: str) -> str:
+    """生成与 Chrome 版本精确匹配的 sec-ch-ua 请求头"""
+    return CHROME_VERSION_MAP[impersonate_key]["sec_ch_ua"]
 
 
 def generate_canvas_hash(verification_id: str, device_key: str) -> str:
@@ -93,13 +157,15 @@ def generate_session_id(verification_id: str) -> str:
     return f"{hex_str[:8]}-{hex_str[8:12]}-{hex_str[12:16]}-{hex_str[16:20]}-{hex_str[20:32]}"
 
 
-def generate_sec_ch_ua(chrome_version: str) -> str:
-    """生成与 Chrome 版本一致的 sec-ch-ua 请求头"""
-    major = chrome_version.split(".")[0]
-    return f'"Chromium";v="{major}", "Google Chrome";v="{major}", "Not-A.Brand";v="99"'
-
-
 def compute_fingerprint_hash(components: list) -> str:
-    """将所有信号组件拼接并计算 MD5 哈希"""
-    raw = "|".join(str(c) for c in components)
-    return hashlib.md5(raw.encode("utf-8")).hexdigest()
+    """
+    将所有信号组件拼接并计算指纹哈希。
+
+    使用 MurmurHash3 x64_128 (seed=31)，与 SheerID learn.js 一致。
+    分隔符: ~~~
+    输出: 32 位十六进制字符串
+    """
+    raw = "~~~".join(str(c) for c in components)
+    # MurmurHash3 x64_128, seed=31, 与 SheerID learn.js 一致
+    hash_val = mmh3.hash128(raw, seed=31, x64arch=True, signed=False)
+    return f"{hash_val:032x}"

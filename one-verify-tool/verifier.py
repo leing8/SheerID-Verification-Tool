@@ -40,19 +40,16 @@ class GeminiVerifier:
         self.identity = factory.create(self.vid, device_type="desktop")
         print(f"[信息] 设备身份: {self.identity.device.brand} {self.identity.device.model}")
 
-        # 2. 基于 DeviceIdentity 的 Chrome 版本创建 TLS 会话
-        #    确保 JA3/JA4 指纹 ↔ HTTP 请求头 版本一致
-        chrome_major = self.identity.chrome_version.split(".")[0]
-        impersonate_ver = f"chrome{chrome_major}"
-
+        # 2. 基于 DeviceIdentity 的 impersonate_key 创建 TLS 会话
+        #    确保 JA3/JA4 指纹 ↔ HTTP 请求头 ↔ sec-ch-ua 版本三者一致
         from anti_detect import create_session
         from anti_detect.session import warm_session
         from proxy_checker import ProxyChecker
 
         self.client, self.lib_name, self.impersonate_target = create_session(
-            proxy, impersonate=impersonate_ver
+            proxy, impersonate=self.identity.impersonate_key
         )
-        print(f"[信息] TLS 模拟: {self.impersonate_target} (JA3/JA4 = Chrome {chrome_major})")
+        print(f"[信息] TLS 模拟: {self.impersonate_target} (Chrome {self.identity.chrome_version})")
 
         # 3. 异步代理 IP 地理检测 (不阻塞主线程)
         if proxy:
