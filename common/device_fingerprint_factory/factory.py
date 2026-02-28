@@ -85,25 +85,28 @@ class DeviceIdentityFactory:
 
         # 7. 计算最终指纹哈希
         #    使用 MurmurHash3 x64_128 (seed=31), 分隔符 ~~~
-        #    信号项与 SheerID learn.js GFPItems 对齐
+        #    信号项与 SheerID learn.js GFPItems 对齐 (2026-02 抓包验证)
+        #
+        #    注意: learn.js 实际通过 learn/fetch 提交 40+ 个 dt* 信号,
+        #    deviceFingerprintHash 是这些信号的子集经 MurmurHash3 计算得到。
+        #    以下信号项和顺序基于抓包分析对齐。
         fingerprint_hash = compute_fingerprint_hash([
             user_agent,                                       # dtb: User-Agent
             "en-US",                                          # dtc: 语言
-            str(device.color_depth),                          # dtd: 色深
+            str(device.color_depth),                          # dtd: 色深 (Windows=32, macOS=30)
             str(device.pixel_ratio),                          # dte: 设备像素比
-            str(device.cpu_cores),                            # dtf: 硬件并发数
-            str(device.screen_width),                         # dtg: 屏幕宽度
-            str(device.screen_height),                        # dth: 屏幕高度
-            str(timezone["offset"] * -60),                    # dti: 时区偏移 (分钟, 正值)
-            device.platform,                                  # dtj: navigator.platform
-            str(device.max_touch_points),                     # dtk: 触屏点数
-            str(device.device_memory),                        # dtl: 设备内存
-            device.webgl_vendor,                              # dtn: WebGL vendor
-            device.webgl_renderer,                            # dto: WebGL renderer
+            "true",                                           # dtf: 字体平滑 (桌面端始终启用)
+            f"[{device.screen_width},{device.screen_height}]",  # dtg: 屏幕分辨率 (JSON数组格式)
+            f"[{device.get_avail_width()},{device.get_avail_height()}]",  # dth: 可用分辨率 (JSON数组格式)
+            str(timezone["offset"] * -60),                    # dti: 时区偏移 (分钟)
+            "true",                                           # dtj: SessionStorage 支持
+            "true",                                           # dtk: LocalStorage 支持
+            "true",                                           # dtl: IndexedDB 支持
+            "unknown",                                        # dtn: 网络连接类型
+            device.platform,                                  # dto: navigator.platform
             canvas_hash,                                      # dtr: Canvas 指纹哈希
-            webgl_hash,                                       # dtt: WebGL 扩展哈希
-            audio_fp,                                         # dtll: AudioContext 指纹
-            font_hash,                                        # 字体哈希
+            device.webgl_renderer,                            # dts: WebGL 渲染器 (完整字符串)
+            audio_fp,                                         # dtt: AudioContext 指纹哈希
         ])
 
         # 8. 构建不可变的 DeviceIdentity

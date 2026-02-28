@@ -43,8 +43,28 @@ class DeviceProfile:
     webgl_vendor: str
     webgl_renderer: str
 
+    # 可用屏幕区域 (扣除任务栏/菜单栏, 有默认值的字段放在最后)
+    # SheerID learn.js 通过 dth 信号收集 screen.availWidth/availHeight
+    avail_screen_width: int = 0   # 0 = 默认等于 screen_width
+    avail_screen_height: int = 0  # 0 = 默认根据 OS 自动计算
+
     # 标签
     tags: List[str] = field(default_factory=list)
+
+    def get_avail_width(self) -> int:
+        """获取可用屏幕宽度 (默认等于 screen_width)"""
+        return self.avail_screen_width if self.avail_screen_width > 0 else self.screen_width
+
+    def get_avail_height(self) -> int:
+        """获取可用屏幕高度 (扣除任务栏/菜单栏)"""
+        if self.avail_screen_height > 0:
+            return self.avail_screen_height
+        # 默认按 OS 自动计算
+        if self.os_family == "windows":
+            return self.screen_height - 48   # Windows 任务栏默认 48px
+        elif self.os_family == "macos":
+            return self.screen_height - 25   # macOS 菜单栏默认 25px
+        return self.screen_height
 
 
 # ============================================================
@@ -59,7 +79,7 @@ DELL_XPS_15_9530_I7 = DeviceProfile(
     os_family="windows",
     screen_width=1920,
     screen_height=1200,
-    color_depth=24,
+    color_depth=32,
     pixel_ratio=1.25,
     cpu_cores=14,
     device_memory=16,
@@ -80,7 +100,7 @@ DELL_XPS_15_9530_I9 = DeviceProfile(
     os_family="windows",
     screen_width=3456,
     screen_height=2160,
-    color_depth=24,
+    color_depth=32,
     pixel_ratio=2.0,
     cpu_cores=14,
     device_memory=32,
@@ -101,7 +121,7 @@ DELL_XPS_15_9530_I5 = DeviceProfile(
     os_family="windows",
     screen_width=1920,
     screen_height=1200,
-    color_depth=24,
+    color_depth=32,
     pixel_ratio=1.25,
     cpu_cores=12,
     device_memory=8,
@@ -122,7 +142,7 @@ DELL_INSPIRON_15_R5_8G = DeviceProfile(
     os_family="windows",
     screen_width=1920,
     screen_height=1080,
-    color_depth=24,
+    color_depth=32,
     pixel_ratio=1.0,
     cpu_cores=6,
     device_memory=8,
@@ -143,7 +163,7 @@ DELL_INSPIRON_15_R5_16G = DeviceProfile(
     os_family="windows",
     screen_width=1920,
     screen_height=1080,
-    color_depth=24,
+    color_depth=32,
     pixel_ratio=1.0,
     cpu_cores=6,
     device_memory=16,
@@ -164,7 +184,7 @@ DELL_INSPIRON_15_R7_16G = DeviceProfile(
     os_family="windows",
     screen_width=1920,
     screen_height=1080,
-    color_depth=24,
+    color_depth=32,
     pixel_ratio=1.25,
     cpu_cores=8,
     device_memory=16,
@@ -185,7 +205,7 @@ DELL_LATITUDE_7440_I5 = DeviceProfile(
     os_family="windows",
     screen_width=1920,
     screen_height=1200,
-    color_depth=24,
+    color_depth=32,
     pixel_ratio=1.25,
     cpu_cores=12,
     device_memory=16,
@@ -206,7 +226,7 @@ DELL_LATITUDE_7440_I7 = DeviceProfile(
     os_family="windows",
     screen_width=1920,
     screen_height=1200,
-    color_depth=24,
+    color_depth=32,
     pixel_ratio=1.25,
     cpu_cores=14,
     device_memory=16,
@@ -227,7 +247,7 @@ DELL_LATITUDE_7440_I7_32G = DeviceProfile(
     os_family="windows",
     screen_width=2560,
     screen_height=1600,
-    color_depth=24,
+    color_depth=32,
     pixel_ratio=1.5,
     cpu_cores=14,
     device_memory=32,
@@ -252,7 +272,7 @@ LENOVO_X1_CARBON_G12_U7_16G = DeviceProfile(
     os_family="windows",
     screen_width=1920,
     screen_height=1200,
-    color_depth=24,
+    color_depth=32,
     pixel_ratio=1.25,
     cpu_cores=16,
     device_memory=16,
@@ -273,7 +293,7 @@ LENOVO_X1_CARBON_G12_U7_32G = DeviceProfile(
     os_family="windows",
     screen_width=2880,
     screen_height=1800,
-    color_depth=24,
+    color_depth=32,
     pixel_ratio=2.0,
     cpu_cores=16,
     device_memory=32,
@@ -294,7 +314,7 @@ LENOVO_X1_CARBON_G12_U5_16G = DeviceProfile(
     os_family="windows",
     screen_width=1920,
     screen_height=1200,
-    color_depth=24,
+    color_depth=32,
     pixel_ratio=1.25,
     cpu_cores=14,
     device_memory=16,
@@ -315,7 +335,7 @@ LENOVO_IDEAPAD_SLIM3_I5_8G = DeviceProfile(
     os_family="windows",
     screen_width=1920,
     screen_height=1080,
-    color_depth=24,
+    color_depth=32,
     pixel_ratio=1.0,
     cpu_cores=10,
     device_memory=8,
@@ -336,7 +356,7 @@ LENOVO_IDEAPAD_SLIM3_I5_16G = DeviceProfile(
     os_family="windows",
     screen_width=1920,
     screen_height=1080,
-    color_depth=24,
+    color_depth=32,
     pixel_ratio=1.0,
     cpu_cores=10,
     device_memory=16,
@@ -357,7 +377,7 @@ LENOVO_IDEAPAD_SLIM3_R5_8G = DeviceProfile(
     os_family="windows",
     screen_width=1920,
     screen_height=1080,
-    color_depth=24,
+    color_depth=32,
     pixel_ratio=1.0,
     cpu_cores=4,
     device_memory=8,
@@ -378,7 +398,7 @@ LENOVO_YOGA7_R7_16G = DeviceProfile(
     os_family="windows",
     screen_width=1920,
     screen_height=1200,
-    color_depth=24,
+    color_depth=32,
     pixel_ratio=1.25,
     cpu_cores=8,
     device_memory=16,
@@ -399,7 +419,7 @@ LENOVO_YOGA7_R5_8G = DeviceProfile(
     os_family="windows",
     screen_width=1920,
     screen_height=1200,
-    color_depth=24,
+    color_depth=32,
     pixel_ratio=1.25,
     cpu_cores=6,
     device_memory=8,
@@ -420,7 +440,7 @@ LENOVO_YOGA7_R7_16G_OLED = DeviceProfile(
     os_family="windows",
     screen_width=2880,
     screen_height=1800,
-    color_depth=24,
+    color_depth=32,
     pixel_ratio=2.0,
     cpu_cores=8,
     device_memory=16,
@@ -641,7 +661,7 @@ HP_PAVILION_15_I5_8G = DeviceProfile(
     os_family="windows",
     screen_width=1920,
     screen_height=1080,
-    color_depth=24,
+    color_depth=32,
     pixel_ratio=1.0,
     cpu_cores=10,
     device_memory=8,
@@ -662,7 +682,7 @@ HP_PAVILION_15_I5_16G = DeviceProfile(
     os_family="windows",
     screen_width=1920,
     screen_height=1080,
-    color_depth=24,
+    color_depth=32,
     pixel_ratio=1.0,
     cpu_cores=10,
     device_memory=16,
@@ -683,7 +703,7 @@ HP_PAVILION_15_I7_16G = DeviceProfile(
     os_family="windows",
     screen_width=1920,
     screen_height=1080,
-    color_depth=24,
+    color_depth=32,
     pixel_ratio=1.25,
     cpu_cores=10,
     device_memory=16,
@@ -707,7 +727,7 @@ HP_SPECTRE_X360_14_U5_16G = DeviceProfile(
     os_family="windows",
     screen_width=2880,
     screen_height=1800,
-    color_depth=24,
+    color_depth=32,
     pixel_ratio=2.0,
     cpu_cores=14,
     device_memory=16,
@@ -728,7 +748,7 @@ HP_SPECTRE_X360_14_U7_16G = DeviceProfile(
     os_family="windows",
     screen_width=2880,
     screen_height=1800,
-    color_depth=24,
+    color_depth=32,
     pixel_ratio=2.0,
     cpu_cores=16,
     device_memory=16,
@@ -749,7 +769,7 @@ HP_SPECTRE_X360_14_U7_32G = DeviceProfile(
     os_family="windows",
     screen_width=2880,
     screen_height=1800,
-    color_depth=24,
+    color_depth=32,
     pixel_ratio=2.0,
     cpu_cores=16,
     device_memory=32,
@@ -773,7 +793,7 @@ HP_ENVY_16_I7_16G = DeviceProfile(
     os_family="windows",
     screen_width=2560,
     screen_height=1600,
-    color_depth=24,
+    color_depth=32,
     pixel_ratio=1.5,
     cpu_cores=14,
     device_memory=16,
@@ -794,7 +814,7 @@ HP_ENVY_16_I7_32G = DeviceProfile(
     os_family="windows",
     screen_width=2560,
     screen_height=1600,
-    color_depth=24,
+    color_depth=32,
     pixel_ratio=1.5,
     cpu_cores=14,
     device_memory=32,
@@ -815,7 +835,7 @@ HP_ENVY_16_I9_32G = DeviceProfile(
     os_family="windows",
     screen_width=2560,
     screen_height=1600,
-    color_depth=24,
+    color_depth=32,
     pixel_ratio=1.5,
     cpu_cores=14,
     device_memory=32,

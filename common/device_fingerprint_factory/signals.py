@@ -56,15 +56,16 @@ CHROME_VERSION_MAP = {
     },
 }
 
-# 按权重排列 (最新版本最高概率)
+# 按权重排列 (最新版本最高概率，符合真实用户分布)
+# 2026-02 真实世界分布: chrome136 ~55%, chrome133 ~20%, chrome131 ~10%, chrome130 ~8%
 CHROME_IMPERSONATE_KEYS = [
-    "chrome136",   # 权重高: 最新
-    "chrome136",   # 重复 = 提高概率
-    "chrome133",   # 权重中
-    "chrome133",
-    "chrome131",   # 权重中
-    "chrome130",   # 权重低
-    "chrome124",   # 权重低
+    "chrome136",   # 最新稳定版 — 最高概率
+    "chrome136",
+    "chrome136",
+    "chrome136",
+    "chrome133",   # 次新 — 中等概率
+    "chrome131",   # 较旧 — 低概率
+    "chrome130",   # 较旧 — 低概率
 ]
 
 # 向后兼容: 精确版本号列表 (供外部引用)
