@@ -12,6 +12,8 @@ dependencies = [
     "curl_cffi>=0.7.0",
     # 文档生成 — 学生证件图片处理
     "Pillow>=10.0.0",
+    # 数值计算 — DocumentRandomizer 光照模拟 / 噪声注入
+    "numpy>=1.24.0",
     # PDF 生成 — 成绩单/发票等
     "reportlab>=4.0.0",
 ]
