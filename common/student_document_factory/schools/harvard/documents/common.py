@@ -109,7 +109,7 @@ def load_serif_font(size: int = 28) -> ImageFont.FreeTypeFont:
     return ImageFont.truetype(str(_FONT_TIMES_BOLD), size)
 
 
-# ============ 文本绘制（打字机效果，支持坐标微偏移）============
+# ============ 文本绘制（打字机效果）============
 
 def draw_text(draw: ImageDraw.Draw, pos: tuple, text: str,
               font, color: tuple = (30, 30, 30), spacing: int = -1,
@@ -117,11 +117,11 @@ def draw_text(draw: ImageDraw.Draw, pos: tuple, text: str,
     """
     逐字符绘制，模拟打字机紧凑字间距。
 
-    如果传入 randomizer，则坐标会自动应用微偏移，
-    破坏固定坐标模式以对抗感知哈希检测。
+    注意：不对坐标做微偏移。感知哈希破坏由图像级变换
+    （透视/旋转/光照/噪声/模糊/JPEG）统一完成，
+    避免相邻字段因独立偏移导致文字重叠。
+    randomizer 参数保留以维持接口兼容，不再使用。
     """
-    if randomizer is not None:
-        pos = randomizer.jitter_coord(pos)
     x, y = pos
     for char in text:
         draw.text((x, y), char, fill=color, font=font)
@@ -153,7 +153,6 @@ class DocumentRandomizer:
     def __init__(self, rng: random.Random):
         self.rng = rng
         # 预先采样所有变换参数（确保确定性）
-        self._jitter_max = rng.randint(2, 3)
         self._rotation_angle = rng.uniform(-1.2, 1.2)
         self._brightness_offset = rng.uniform(-0.10, 0.10)
         self._color_temp_shift = rng.randint(-8, 8)
@@ -170,13 +169,134 @@ class DocumentRandomizer:
         # 渐变阴影方向和强度
         self._shadow_direction = rng.choice(["top", "bottom", "left", "right"])
         self._shadow_intensity = rng.uniform(0.03, 0.08)
+        # 边缘裁剪（模拟手机拍摄未完全对准），每边独立，单位：像素
+        self._crop_margins = (
+            rng.randint(0, 15),   # 上
+            rng.randint(0, 15),   # 右
+            rng.randint(0, 15),   # 下
+            rng.randint(0, 15),   # 左
+        )
+        # 折痕（0~2 条水平/垂直线条阴影，仅在边缘 15% 区域内）
+        self._fold_count = rng.randint(0, 2)
+        self._fold_params = [
+            (
+                rng.choice(["h", "v"]),            # 方向：水平/垂直
+                rng.uniform(0.05, 0.15),           # 位置比例（仅边缘 15%）
+                rng.choice([True, False]),          # True=靠近起始边，False=靠近末尾边
+                rng.randint(3, 8),                  # 线宽（像素）
+                rng.uniform(0.05, 0.15),            # 不透明度
+            )
+            for _ in range(self._fold_count)
+        ]
+        # 污渍（0~2 个椭圆色斑，仅在边缘 15% 区域内）
+        self._stain_count = rng.randint(0, 2)
+        self._stain_params = [
+            (
+                rng.choice(["tl", "tr", "bl", "br"]),   # 角落位置
+                rng.randint(20, 50),                     # 椭圆 x 半径（像素）
+                rng.randint(15, 40),                     # 椭圆 y 半径（像素）
+                rng.randint(0, 30),                      # 相对角落的 x 偏移
+                rng.randint(0, 30),                      # 相对角落的 y 偏移
+                rng.uniform(0.06, 0.18),                 # 不透明度
+                (rng.randint(140, 200),
+                 rng.randint(110, 170),
+                 rng.randint(60, 120)),                  # 污渍颜色（棕/黄调）
+            )
+            for _ in range(self._stain_count)
+        ]
 
-    def jitter_coord(self, pos: tuple, max_offset: int = 0) -> tuple:
-        """坐标微偏移 ±N 像素，破坏固定坐标特征"""
-        offset = max_offset if max_offset > 0 else self._jitter_max
-        dx = self.rng.randint(-offset, offset)
-        dy = self.rng.randint(-offset, offset)
-        return (pos[0] + dx, pos[1] + dy)
+    def _apply_crop(self, img: Image.Image) -> Image.Image:
+        """边缘裁剪 — 模拟手机拍摄未完全对准纸张"""
+        top, right, bottom, left = self._crop_margins
+        w, h = img.size
+        new_left = left
+        new_top = top
+        new_right = w - right
+        new_bottom = h - bottom
+        # 保证不会裁剪过度（至少保留 80% 图像）
+        if new_right - new_left < w * 0.8 or new_bottom - new_top < h * 0.8:
+            return img
+        return img.crop((new_left, new_top, new_right, new_bottom)).resize(
+            (w, h), Image.Resampling.LANCZOS
+        )
+
+    def _apply_fold_lines(self, img: Image.Image) -> Image.Image:
+        """折痕效果 — 在图像边缘区域叠加半透明线条阴影，模拟纸张折叠"""
+        if not self._fold_params:
+            return img
+        try:
+            import numpy as np
+        except ImportError:
+            return img
+
+        arr = np.array(img, dtype=np.float32)
+        h, w = arr.shape[:2]
+
+        for direction, pos_ratio, near_start, thickness, opacity in self._fold_params:
+            if direction == "h":
+                # 水平折痕，限制在顶部或底部 15% 区域
+                if near_start:
+                    y_center = int(h * pos_ratio)              # 靠近顶部
+                else:
+                    y_center = int(h * (1.0 - pos_ratio))      # 靠近底部
+                y1 = max(0, y_center - thickness // 2)
+                y2 = min(h, y_center + thickness // 2 + 1)
+                arr[y1:y2, :] *= (1.0 - opacity)
+            else:
+                # 垂直折痕，限制在左侧或右侧 15% 区域
+                if near_start:
+                    x_center = int(w * pos_ratio)              # 靠近左侧
+                else:
+                    x_center = int(w * (1.0 - pos_ratio))      # 靠近右侧
+                x1 = max(0, x_center - thickness // 2)
+                x2 = min(w, x_center + thickness // 2 + 1)
+                arr[:, x1:x2] *= (1.0 - opacity)
+
+        arr = np.clip(arr, 0, 255).astype(np.uint8)
+        return Image.fromarray(arr)
+
+    def _apply_stains(self, img: Image.Image) -> Image.Image:
+        """污渍效果 — 在图像角落区域叠加高斯模糊椭圆色斑，模拟咖啡渍/墨水点"""
+        if not self._stain_params:
+            return img
+        try:
+            import numpy as np
+        except ImportError:
+            return img
+
+        arr = np.array(img, dtype=np.float32)
+        h, w = arr.shape[:2]
+        # 边缘安全区域：污渍中心只能出现在距边 15% 范围内
+        edge_x = int(w * 0.15)
+        edge_y = int(h * 0.15)
+
+        for corner, rx, ry, ox, oy, opacity, color in self._stain_params:
+            # 计算角落基准坐标
+            if corner == "tl":
+                cx, cy = ox + rx, oy + ry
+            elif corner == "tr":
+                cx, cy = w - ox - rx, oy + ry
+            elif corner == "bl":
+                cx, cy = ox + rx, h - oy - ry
+            else:  # br
+                cx, cy = w - ox - rx, h - oy - ry
+
+            # 约束污渍中心在边缘区域
+            cx = max(rx, min(edge_x + rx, cx))
+            cy = max(ry, min(edge_y + ry, cy))
+
+            # 构建椭圆高斯掩码
+            ys, xs = np.ogrid[:h, :w]
+            dist = ((xs - cx) / max(rx, 1)) ** 2 + ((ys - cy) / max(ry, 1)) ** 2
+            mask = np.exp(-dist * 2.0)  # 高斯衰减
+            mask = mask[:, :, np.newaxis] * opacity  # 扩展到 RGB
+
+            # 混合污渍颜色
+            stain_color = np.array(color, dtype=np.float32)
+            arr = arr * (1.0 - mask) + stain_color * mask
+
+        arr = np.clip(arr, 0, 255).astype(np.uint8)
+        return Image.fromarray(arr)
 
     def _apply_perspective(self, img: Image.Image) -> Image.Image:
         """透视变形 — 四角独立微偏移模拟纸张不平整"""
@@ -316,11 +436,24 @@ class DocumentRandomizer:
         """
         完整的拍照模拟流水线。
 
-        执行顺序经过设计：几何变换在前（避免模糊后再变换），
-        像素级变换在后（噪声 / 模糊 / JPEG 作为最终步骤）。
+        执行顺序经过设计：
+          1. 裁剪      — 模拟手机未完全对准纸张
+          2. 透视变形  — 模拟纸张不平整 / 拍摄角度
+          3. 轻微旋转  — 模拟手机未完全对齐
+          4. 折痕      — 叠加边缘折叠线条阴影（几何变换后添加，避免被扭曲）
+          5. 污渍      — 叠加边缘角落色斑（限制在图像边缘 15% 区域）
+          6. 光照变换  — 亮度 / 色温偏移 + 渐变阴影
+          7. 高斯噪声  — 模拟传感器噪声
+          8. 高斯模糊  — 模拟轻微对焦偏差
+          9. JPEG 重编码 — 引入自然压缩伪影
+
+        折痕/污渍只出现在图像边缘区域，不影响核心数据字段可读性。
         """
+        img = self._apply_crop(img)
         img = self._apply_perspective(img)
         img = self._apply_rotation(img)
+        img = self._apply_fold_lines(img)
+        img = self._apply_stains(img)
         img = self._apply_lighting(img)
         img = self._apply_noise(img)
         img = self._apply_blur(img)

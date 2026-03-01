@@ -46,8 +46,8 @@ _COORDS = {
     # ① To: 下方地址（左侧，4 行，行距约 26px）
     "to_name":     (82, 313),    # 收件人名称（如 COLFUTURO）
     "to_addr1":    (82, 342),    # 街道地址
-    "to_addr2":    (82, 368),    # 城市 + 州 + 邮编
-    "to_country":  (82, 392),    # 国家
+    "to_addr2":    (82, 370),    # 城市 + 州 + 邮编
+    "to_country":  (82, 397),    # 国家
 
     # ② ③ Invoice Number / Date（右上角，"Invoice Number:" 标签右侧）
     "invoice_number": (1023, 153),
@@ -62,8 +62,8 @@ _COORDS = {
     # ⑥ 费用明细行（表头行下方开始）
     "items_start_y": 600,
     "item_cols": {
-        "date":        92,       # Date 列
-        "description": 272,      # Description 列
+        "date":        95,       # Date 列
+        "description": 270,      # Description 列
         "term":        927,      # Term 列
         "amount":      1185,     # Amount 列
     },
@@ -80,7 +80,7 @@ _FOOTER_GAP = 30
 
 # ⑧ receipt2 叠加后，"Total Amount Due:" 金额的相对坐标
 # 相对于 receipt2 粘贴起点 (footer_x, paste_y) 的偏移
-_FOOTER_TOTAL_OFFSET = (1023, 110)
+_FOOTER_TOTAL_OFFSET = (1020, 110)
 
 # Helvetica 字体在发票中使用的字间距（像素）
 # 默认 draw_text spacing=-1 过于紧凑，此处使用 0 以匹配真实发票

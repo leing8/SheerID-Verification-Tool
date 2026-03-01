@@ -114,7 +114,7 @@ class TestDocumentRandomizer:
     """DocumentRandomizer 变换参数测试"""
 
     def test_randomizer_deterministic(self):
-        """同一 seed 的 randomizer 产生相同偏移"""
+        """同一 seed 的 randomizer 产生相同参数"""
         import random
         rng1 = random.Random(42)
         rng2 = random.Random(42)
@@ -123,6 +123,9 @@ class TestDocumentRandomizer:
         assert r1._rotation_angle == r2._rotation_angle
         assert r1._brightness_offset == r2._brightness_offset
         assert r1._noise_sigma == r2._noise_sigma
+        assert r1._crop_margins == r2._crop_margins
+        assert r1._fold_count == r2._fold_count
+        assert r1._stain_count == r2._stain_count
 
     def test_different_seed_different_params(self):
         """不同 seed 的 randomizer 参数不同"""
@@ -135,16 +138,6 @@ class TestDocumentRandomizer:
             or r1._brightness_offset != r2._brightness_offset
             or r1._noise_sigma != r2._noise_sigma
         )
-
-    def test_jitter_coord_within_range(self):
-        """坐标偏移应在指定范围内"""
-        import random
-        rng = random.Random(99)
-        r = DocumentRandomizer(rng)
-        for _ in range(50):
-            jittered = r.jitter_coord((100, 200))
-            assert abs(jittered[0] - 100) <= r._jitter_max
-            assert abs(jittered[1] - 200) <= r._jitter_max
 
     def test_rotation_angle_within_limit(self):
         """旋转角度应在 ±1.2° 范围内"""
@@ -166,6 +159,50 @@ class TestDocumentRandomizer:
         for seed in range(100):
             r = DocumentRandomizer(random.Random(seed))
             assert 87 <= r._jpeg_quality <= 95
+
+    def test_crop_margins_within_limit(self):
+        """裁剪边距应在 0~15px 范围内"""
+        import random
+        for seed in range(100):
+            r = DocumentRandomizer(random.Random(seed))
+            assert len(r._crop_margins) == 4
+            for margin in r._crop_margins:
+                assert 0 <= margin <= 15
+
+    def test_fold_count_within_range(self):
+        """折痕数量应在 0~2 范围内"""
+        import random
+        for seed in range(100):
+            r = DocumentRandomizer(random.Random(seed))
+            assert 0 <= r._fold_count <= 2
+            assert len(r._fold_params) == r._fold_count
+
+    def test_fold_position_in_edge_zone(self):
+        """折痕位置比例应在 5%~15% 边缘范围内"""
+        import random
+        for seed in range(100):
+            r = DocumentRandomizer(random.Random(seed))
+            for direction, pos_ratio, _near_start, thickness, opacity in r._fold_params:
+                assert direction in ("h", "v")
+                assert 0.05 <= pos_ratio <= 0.15
+                assert 3 <= thickness <= 8
+                assert 0.05 <= opacity <= 0.15
+
+    def test_stain_count_within_range(self):
+        """污渍数量应在 0~2 范围内"""
+        import random
+        for seed in range(100):
+            r = DocumentRandomizer(random.Random(seed))
+            assert 0 <= r._stain_count <= 2
+            assert len(r._stain_params) == r._stain_count
+
+    def test_stain_opacity_within_range(self):
+        """污渍不透明度应在 6%~18% 范围内"""
+        import random
+        for seed in range(100):
+            r = DocumentRandomizer(random.Random(seed))
+            for _corner, _rx, _ry, _ox, _oy, opacity, _color in r._stain_params:
+                assert 0.06 <= opacity <= 0.18
 
     def test_photo_simulation_changes_image(self, sample_harvard_data):
         """拍照模拟应改变原始图像"""

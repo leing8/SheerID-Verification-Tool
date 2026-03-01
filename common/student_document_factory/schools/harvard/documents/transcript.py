@@ -38,17 +38,14 @@ if TYPE_CHECKING:
 
 _COORDS = {
     # ISSUED TO: 下方地址区域（4行）
-    "issued_to_line1": (73, 200),
-    "issued_to_line2": (73, 218),
-    "issued_to_line3": (73, 236),
-    "issued_to_line4": (73, 254),
+    "issued_to_lines": (73, 185),
     # Name: / ID: / Printed:
-    "name":       (90,  372),
-    "student_id": (90,  387),
-    "printed":    (655, 372),
+    "name":       (90,  359),
+    "student_id": (90,  375),
+    "printed":    (655, 359),
     # 课程区域
-    "semester_label":  (40, 470),
-    "courses_start_y": 495,
+    "semester_label":  (40, 450),
+    "courses_start_y": 468,
     "course_cols": {
         "course":  120,
         "title":   230,
@@ -58,7 +55,7 @@ _COORDS = {
         "grade":   685,
     },
 }
-_COURSE_LINE_HEIGHT = 20
+_COURSE_LINE_HEIGHT = 15
 
 # 底部声明与课程末行的间距（像素）
 _FOOTER_GAP = 30
@@ -92,9 +89,9 @@ def generate_transcript(student: "HarvardStudentData",
 
     # 1. ISSUED TO 地址
     addr = student.address
-    y = _COORDS["issued_to_line1"][1]
+    y = _COORDS["issued_to_lines"][1]
     for line in addr:
-        draw_text(draw, (_COORDS["issued_to_line1"][0], y), line, fonts["sm_bold"],
+        draw_text(draw, (_COORDS["issued_to_lines"][0], y), line, fonts["sm_bold"],
                   randomizer=randomizer)
         y += 15
 

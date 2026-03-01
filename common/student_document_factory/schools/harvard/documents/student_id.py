@@ -31,13 +31,13 @@ if TYPE_CHECKING:
 
 _COORDS = {
     "photo":      (52, 40, 244, 240),    # 头像区域 (x1, y1, x2, y2)
-    "birthday":   (375, 220),            # 生日（STUDENT 下方）
+    "birthday":   (377, 220),            # 生日（STUDENT 下方）
     "name":       (25, 247),             # 姓名
     "id_number":  (25, 278),             # 学号
     "sp_label":   (205, 278),            # SP 标识
     "valid_thru": (423, 278),            # 过期日期
     "barcode":    (25, 316, 240, 366),   # 条形码扰乱区域
-    "school_code": (480, 340),           # 学院缩写（右下角，动态渲染）
+    "school_code": (480, 335),           # 学院缩写（右下角，动态渲染）
 }
 
 
