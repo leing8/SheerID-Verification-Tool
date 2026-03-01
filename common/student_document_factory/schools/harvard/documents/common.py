@@ -32,6 +32,8 @@ TRANSCRIPT_TEMPLATE = _TEMPLATES_DIR / "harvard-transcript.png"
 TRANSCRIPT_TEMPLATE_1 = _TEMPLATES_DIR / "harvard-transcript1.png"
 TRANSCRIPT_TEMPLATE_2 = _TEMPLATES_DIR / "harvard-transcript2.png"
 INVOICE_TEMPLATE = _TEMPLATES_DIR / "harvard-tuition-receipt.png"
+INVOICE_TEMPLATE_1 = _TEMPLATES_DIR / "harvard-tuition-receipt1.png"
+INVOICE_TEMPLATE_2 = _TEMPLATES_DIR / "harvard-tuition-receipt2.png"
 STUDENT_ID_TEMPLATE = _TEMPLATES_DIR / "harvard-student-id.png"
 
 # 字体路径（fonts/ 子目录，项目内打包，不依赖宿主机）
@@ -40,10 +42,13 @@ _FONT_LETTER_GOTHIC = _FONTS_DIR / "Letter Gothic Std.ttf"
 _FONT_LETTER_GOTHIC_BOLD = _FONTS_DIR / "Letter Gothic Std Bold.ttf"
 _FONT_TIMES = _FONTS_DIR / "Times New Roman.ttf"
 _FONT_TIMES_BOLD = _FONTS_DIR / "Times New Roman Bold.ttf"
+_FONT_HELVETICA_MEDIUM = _FONTS_DIR / "Helvetica CE Medium.otf"
+_FONT_HELVETICA_BOLD = _FONTS_DIR / "Helvetica CE Bold.otf"
 
 # ============ 字体加载 ============
 
 _monospace_cache = {}
+_helvetica_cache = {}
 
 
 def load_monospace_fonts(sizes: Tuple[int, ...] = (14, 12, 11, 10)) -> dict:
@@ -69,6 +74,31 @@ def load_monospace_fonts(sizes: Tuple[int, ...] = (14, 12, 11, 10)) -> dict:
 
     _monospace_cache[cache_key] = fonts
     return fonts
+
+
+def load_helvetica_fonts() -> dict:
+    """
+    加载 Helvetica CE Medium / Bold 字体（发票专用）。
+
+    返回字典键名：
+      - xs / xs_bold  (14px)
+      - sm / sm_bold  (17px)
+      - md / md_bold  (26px)  — 发票正文
+      - lg / lg_bold  (28px)  — Total Due 金额
+      - xl / xl_bold  (38px)  — Total Amount Due 大号标题
+    """
+    if _helvetica_cache:
+        return _helvetica_cache
+
+    medium_path = str(_FONT_HELVETICA_MEDIUM)
+    bold_path = str(_FONT_HELVETICA_BOLD)
+
+    size_mapping = {14: "xs", 17: "sm", 26: "md", 28: "lg", 38: "xl"}
+    for size, key in size_mapping.items():
+        _helvetica_cache[key] = ImageFont.truetype(medium_path, size)
+        _helvetica_cache[f"{key}_bold"] = ImageFont.truetype(bold_path, size)
+
+    return _helvetica_cache
 
 
 def load_serif_font(size: int = 28) -> ImageFont.FreeTypeFont:

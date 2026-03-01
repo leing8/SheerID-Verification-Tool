@@ -14,7 +14,8 @@ from student_document_factory.schools.harvard.documents import (
 )
 from student_document_factory.schools.harvard.documents.common import (
     DocumentRandomizer,
-    INVOICE_TEMPLATE,
+    INVOICE_TEMPLATE_1,
+    INVOICE_TEMPLATE_2,
     STUDENT_ID_TEMPLATE,
     TRANSCRIPT_TEMPLATE_1,
     TRANSCRIPT_TEMPLATE_2,
@@ -31,7 +32,8 @@ class TestTemplateFiles:
 
     def test_invoice_template_exists(self):
         """发票模板文件应存在"""
-        assert INVOICE_TEMPLATE.exists(), f"模板不存在: {INVOICE_TEMPLATE}"
+        assert INVOICE_TEMPLATE_1.exists(), f"模板不存在: {INVOICE_TEMPLATE_1}"
+        assert INVOICE_TEMPLATE_2.exists(), f"模板不存在: {INVOICE_TEMPLATE_2}"
 
     def test_student_id_template_exists(self):
         """学生证模板文件应存在"""
