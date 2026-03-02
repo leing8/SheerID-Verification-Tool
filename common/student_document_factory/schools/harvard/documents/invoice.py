@@ -30,7 +30,6 @@ from PIL import Image, ImageDraw
 from .common import (
     INVOICE_TEMPLATE_1,
     INVOICE_TEMPLATE_2,
-    DocumentRandomizer,
     draw_text,
     image_to_format,
     load_helvetica_fonts,
@@ -98,7 +97,6 @@ def generate_invoice(student: "HarvardStudentData",
 
     rng = seeded_rng(student)
     fonts = load_helvetica_fonts()
-    randomizer = DocumentRandomizer(rng)
 
     img = Image.open(INVOICE_TEMPLATE_1).convert("RGB")
     draw = ImageDraw.Draw(img)
@@ -109,37 +107,29 @@ def generate_invoice(student: "HarvardStudentData",
 
     # ① To: 地址（Helvetica Medium 26px）
     addr = student.address
-    draw_text(draw, _COORDS["to_name"],    addr[0], fonts["md"],
-              spacing=_INVOICE_CHAR_SPACING, randomizer=randomizer)
-    draw_text(draw, _COORDS["to_addr1"],   addr[1], fonts["md"],
-              spacing=_INVOICE_CHAR_SPACING, randomizer=randomizer)
-    draw_text(draw, _COORDS["to_addr2"],   addr[2], fonts["md"],
-              spacing=_INVOICE_CHAR_SPACING, randomizer=randomizer)
-    draw_text(draw, _COORDS["to_country"], addr[3], fonts["md"],
-              spacing=_INVOICE_CHAR_SPACING, randomizer=randomizer)
+    draw_text(draw, _COORDS["to_name"],    addr[0], fonts["md"], spacing=_INVOICE_CHAR_SPACING)
+    draw_text(draw, _COORDS["to_addr1"],   addr[1], fonts["md"], spacing=_INVOICE_CHAR_SPACING)
+    draw_text(draw, _COORDS["to_addr2"],   addr[2], fonts["md"], spacing=_INVOICE_CHAR_SPACING)
+    draw_text(draw, _COORDS["to_country"], addr[3], fonts["md"], spacing=_INVOICE_CHAR_SPACING)
 
     # ② Invoice Number（Helvetica Medium 26px）
-    draw_text(draw, _COORDS["invoice_number"], student.invoice_number, fonts["md"],
-              spacing=_INVOICE_CHAR_SPACING, randomizer=randomizer)
+    draw_text(draw, _COORDS["invoice_number"], student.invoice_number, fonts["md"], spacing=_INVOICE_CHAR_SPACING)
 
     # ③ Invoice Date（Helvetica Medium 26px）
-    draw_text(draw, _COORDS["invoice_date"], time.strftime("%m/%d/%Y"), fonts["md"],
-              spacing=_INVOICE_CHAR_SPACING, randomizer=randomizer)
+    draw_text(draw, _COORDS["invoice_date"], time.strftime("%m/%d/%Y"), fonts["md"], spacing=_INVOICE_CHAR_SPACING)
 
     # ④ Total Amount Due 头部大字金额（Helvetica Bold 38px）
-    draw_text(draw, _COORDS["total_header"], total_str, fonts["xl_bold"],
-              spacing=_INVOICE_CHAR_SPACING, randomizer=randomizer)
+    draw_text(draw, _COORDS["total_header"], total_str, fonts["xl_bold"], spacing=_INVOICE_CHAR_SPACING)
 
     # ⑤ Transactions for [姓名]:（Helvetica Medium 26px）
     draw_text(draw, _COORDS["transactions_label"],
-              f"Transactions for {full_name}:", fonts["md"],
-              spacing=_INVOICE_CHAR_SPACING, randomizer=randomizer)
+              f"Transactions for {full_name}:", fonts["md"], spacing=_INVOICE_CHAR_SPACING)
 
     # ⑥ 费用明细行（Helvetica Medium 26px）
     date_str = time.strftime("%Y-%m-%d")
     program_short = student.program.split("(")[0].strip()
     line_items = [
-        (date_str, f"Tuition - {program_short}",              student.term, student.tuition_amount),
+        (date_str, f"Tuition - {program_short}",               student.term, student.tuition_amount),
         (date_str, "Student Health Insurance Plan",            student.term, student.fee_health),
         (date_str, "Student Activities Fee",                   student.term, student.fee_activity),
         (date_str, "Harvard Griffin GSAS Student Council Fee", student.term, student.fee_gsc),
@@ -148,34 +138,25 @@ def generate_invoice(student: "HarvardStudentData",
     y = _COORDS["items_start_y"]
     cols = _COORDS["item_cols"]
     for dt, desc, term, amt in line_items:
-        draw_text(draw, (cols["date"],        y), dt,             fonts["md"],
-                  spacing=_INVOICE_CHAR_SPACING, randomizer=randomizer)
-        draw_text(draw, (cols["description"], y), desc[:42],      fonts["md"],
-                  spacing=_INVOICE_CHAR_SPACING, randomizer=randomizer)
-        draw_text(draw, (cols["term"],        y), term,           fonts["md"],
-                  spacing=_INVOICE_CHAR_SPACING, randomizer=randomizer)
-        draw_text(draw, (cols["amount"],      y), f"${amt:,}.00", fonts["md"],
-                  spacing=_INVOICE_CHAR_SPACING, randomizer=randomizer)
+        draw_text(draw, (cols["date"],        y), dt,             fonts["md"], spacing=_INVOICE_CHAR_SPACING)
+        draw_text(draw, (cols["description"], y), desc[:42],      fonts["md"], spacing=_INVOICE_CHAR_SPACING)
+        draw_text(draw, (cols["term"],        y), term,           fonts["md"], spacing=_INVOICE_CHAR_SPACING)
+        draw_text(draw, (cols["amount"],      y), f"${amt:,}.00", fonts["md"], spacing=_INVOICE_CHAR_SPACING)
         y += _ITEM_LINE_HEIGHT
 
     # ⑦ Total Due for [姓名]:（标签 Medium 26px + 金额 Bold 28px）
-    draw_text(draw, (cols["description"] + 510, y),
-              f"Total Due for {full_name}:", fonts["md"],
-              spacing=_INVOICE_CHAR_SPACING, randomizer=randomizer)
-    draw_text(draw, (cols["amount"], y),
-              total_str, fonts["lg_bold"],
-              spacing=_INVOICE_CHAR_SPACING, randomizer=randomizer)
+    draw_text(draw, (cols["description"] + 510, y), f"Total Due for {full_name}:", fonts["md"], spacing=_INVOICE_CHAR_SPACING)
+    draw_text(draw, (cols["amount"], y), total_str, fonts["lg_bold"], spacing=_INVOICE_CHAR_SPACING)
 
     # ⑧ 叠加底部声明（receipt2 透明背景）并填写底部 Total Amount Due 金额
     last_item_y = y + _ITEM_LINE_HEIGHT
-    _overlay_footer(img, last_item_y, total_str, fonts, randomizer)
+    _overlay_footer(img, last_item_y, total_str, fonts)
 
     return image_to_format(img, rng, output_format)
 
 
 def _overlay_footer(img: Image.Image, last_item_y: int,
-                    total_str: str, fonts: dict,
-                    randomizer: DocumentRandomizer) -> None:
+                    total_str: str, fonts: dict) -> None:
     """
     在费用明细末行下方叠加 receipt2.png 底部声明，
     并在 receipt2 的 "Total Amount Due:" 后面填写金额。
@@ -200,5 +181,4 @@ def _overlay_footer(img: Image.Image, last_item_y: int,
     amount_x = footer_x + _FOOTER_TOTAL_OFFSET[0]
     amount_y = paste_y + _FOOTER_TOTAL_OFFSET[1]
     draw = ImageDraw.Draw(img)
-    draw_text(draw, (amount_x, amount_y), total_str, fonts["xl_bold"],
-              spacing=_INVOICE_CHAR_SPACING, randomizer=randomizer)
+    draw_text(draw, (amount_x, amount_y), total_str, fonts["xl_bold"], spacing=_INVOICE_CHAR_SPACING)

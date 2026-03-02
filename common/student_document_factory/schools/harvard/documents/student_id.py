@@ -16,7 +16,6 @@ from PIL import Image, ImageDraw
 
 from .common import (
     STUDENT_ID_TEMPLATE,
-    DocumentRandomizer,
     draw_text,
     fetch_random_avatar,
     image_to_format,
@@ -50,7 +49,6 @@ def generate_student_id_card(student: "HarvardStudentData",
         raise FileNotFoundError(f"哈佛学生证模板不存在: {STUDENT_ID_TEMPLATE}")
 
     rng = seeded_rng(student)
-    randomizer = DocumentRandomizer(rng)
 
     img = Image.open(STUDENT_ID_TEMPLATE).convert("RGB")
     draw = ImageDraw.Draw(img)
@@ -71,34 +69,19 @@ def generate_student_id_card(student: "HarvardStudentData",
     # 1.5 生日（MM/DD/YY 格式，位于 STUDENT 下方）
     birth_dt = datetime.strptime(student.birth_date, "%Y-%m-%d")
     birthday_text = birth_dt.strftime("%m/%d/%y")
-    draw_text(draw, _COORDS["birthday"],
-              birthday_text,
-              font, color=text_color, spacing=0,
-              randomizer=randomizer)
+    draw_text(draw, _COORDS["birthday"], birthday_text, font, color=text_color, spacing=0)
 
     # 2. 姓名（大写，逐字符绘制）
-    draw_text(draw, _COORDS["name"],
-              f"{student.first_name} {student.last_name}".upper(),
-              font, color=text_color, spacing=0,
-              randomizer=randomizer)
+    draw_text(draw, _COORDS["name"], f"{student.first_name} {student.last_name}".upper(), font, color=text_color, spacing=0)
 
     # 3. 学号 + SP
-    draw_text(draw, _COORDS["id_number"],
-              f"{student.student_id} 0",
-              font, color=text_color, spacing=0,
-              randomizer=randomizer)
-    draw_text(draw, _COORDS["sp_label"],
-              "SP",
-              font, color=text_color, spacing=0,
-              randomizer=randomizer)
+    draw_text(draw, _COORDS["id_number"], f"{student.student_id} 0", font, color=text_color, spacing=0)
+    draw_text(draw, _COORDS["sp_label"], "SP", font, color=text_color, spacing=0)
 
     # 4. VALID THRU
     now = datetime.now()
     valid_year = now.year if now.month <= 5 else now.year + 1
-    draw_text(draw, _COORDS["valid_thru"],
-              f"05/31/{valid_year}",
-              font, color=text_color, spacing=0,
-              randomizer=randomizer)
+    draw_text(draw, _COORDS["valid_thru"], f"05/31/{valid_year}", font, color=text_color, spacing=0)
 
     # 5. 条形码扰乱：在原有条形码上叠加随机黑线
     bx1, by1, bx2, by2 = _COORDS["barcode"]
@@ -107,9 +90,6 @@ def generate_student_id_card(student: "HarvardStudentData",
         draw.rectangle([(x, by1 + 3), (x + rng.randint(1, 4), by2 - 3)], fill=(0, 0, 0))
 
     # 6. 学院缩写（右下角动态渲染）
-    draw_text(draw, _COORDS["school_code"],
-              student.school_code,
-              font, color=text_color, spacing=0,
-              randomizer=randomizer)
+    draw_text(draw, _COORDS["school_code"], student.school_code, font, color=text_color, spacing=0)
 
-    return image_to_format(img, rng, output_format)
+    return image_to_format(img, rng, output_format, doc_type="student_id")

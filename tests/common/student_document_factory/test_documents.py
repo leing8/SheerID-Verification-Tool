@@ -13,7 +13,6 @@ from student_document_factory.schools.harvard.documents import (
     generate_transcript,
 )
 from student_document_factory.schools.harvard.documents.common import (
-    DocumentRandomizer,
     INVOICE_TEMPLATE_1,
     INVOICE_TEMPLATE_2,
     STUDENT_ID_TEMPLATE,
@@ -110,115 +109,116 @@ class TestDeterministicDocuments:
         assert result1 != result2
 
 
-class TestDocumentRandomizer:
-    """DocumentRandomizer 变换参数测试"""
+class TestObfuscationPipeline:
+    """ObfuscationPipeline 与 PhotoSimulation 测试（替代旧 DocumentRandomizer）"""
 
-    def test_randomizer_deterministic(self):
-        """同一 seed 的 randomizer 产生相同参数"""
+    def test_pipeline_disabled_returns_original(self):
+        """config.enabled=False 时，apply() 应返回原图（字节一致）"""
         import random
-        rng1 = random.Random(42)
-        rng2 = random.Random(42)
-        r1 = DocumentRandomizer(rng1)
-        r2 = DocumentRandomizer(rng2)
-        assert r1._rotation_angle == r2._rotation_angle
-        assert r1._brightness_offset == r2._brightness_offset
-        assert r1._noise_sigma == r2._noise_sigma
-        assert r1._crop_margins == r2._crop_margins
-        assert r1._fold_count == r2._fold_count
-        assert r1._stain_count == r2._stain_count
-
-    def test_different_seed_different_params(self):
-        """不同 seed 的 randomizer 参数不同"""
-        import random
-        r1 = DocumentRandomizer(random.Random(1))
-        r2 = DocumentRandomizer(random.Random(2))
-        # 至少有一项不同
-        assert (
-            r1._rotation_angle != r2._rotation_angle
-            or r1._brightness_offset != r2._brightness_offset
-            or r1._noise_sigma != r2._noise_sigma
-        )
-
-    def test_rotation_angle_within_limit(self):
-        """旋转角度应在 ±1.2° 范围内"""
-        import random
-        for seed in range(100):
-            r = DocumentRandomizer(random.Random(seed))
-            assert abs(r._rotation_angle) <= 1.2
-
-    def test_brightness_offset_within_limit(self):
-        """亮度偏移应在 ±10% 范围内"""
-        import random
-        for seed in range(100):
-            r = DocumentRandomizer(random.Random(seed))
-            assert abs(r._brightness_offset) <= 0.10
-
-    def test_jpeg_quality_within_range(self):
-        """JPEG 质量应在 87-95 范围内"""
-        import random
-        for seed in range(100):
-            r = DocumentRandomizer(random.Random(seed))
-            assert 87 <= r._jpeg_quality <= 95
-
-    def test_crop_margins_within_limit(self):
-        """裁剪边距应在 0~15px 范围内"""
-        import random
-        for seed in range(100):
-            r = DocumentRandomizer(random.Random(seed))
-            assert len(r._crop_margins) == 4
-            for margin in r._crop_margins:
-                assert 0 <= margin <= 15
-
-    def test_fold_count_within_range(self):
-        """折痕数量应在 0~2 范围内"""
-        import random
-        for seed in range(100):
-            r = DocumentRandomizer(random.Random(seed))
-            assert 0 <= r._fold_count <= 2
-            assert len(r._fold_params) == r._fold_count
-
-    def test_fold_position_in_edge_zone(self):
-        """折痕位置比例应在 5%~15% 边缘范围内"""
-        import random
-        for seed in range(100):
-            r = DocumentRandomizer(random.Random(seed))
-            for direction, pos_ratio, _near_start, thickness, opacity in r._fold_params:
-                assert direction in ("h", "v")
-                assert 0.05 <= pos_ratio <= 0.15
-                assert 3 <= thickness <= 8
-                assert 0.05 <= opacity <= 0.15
-
-    def test_stain_count_within_range(self):
-        """污渍数量应在 0~2 范围内"""
-        import random
-        for seed in range(100):
-            r = DocumentRandomizer(random.Random(seed))
-            assert 0 <= r._stain_count <= 2
-            assert len(r._stain_params) == r._stain_count
-
-    def test_stain_opacity_within_range(self):
-        """污渍不透明度应在 6%~18% 范围内"""
-        import random
-        for seed in range(100):
-            r = DocumentRandomizer(random.Random(seed))
-            for _corner, _rx, _ry, _ox, _oy, opacity, _color in r._stain_params:
-                assert 0.06 <= opacity <= 0.18
-
-    def test_photo_simulation_changes_image(self, sample_harvard_data):
-        """拍照模拟应改变原始图像"""
         from PIL import Image
+        from student_document_factory.document_obfuscation import ObfuscationConfig, ObfuscationPipeline
+
+        img = Image.open(TRANSCRIPT_TEMPLATE_1).convert("RGB")
+        config = ObfuscationConfig(enabled=False)
+        pipeline = ObfuscationPipeline(random.Random(42), config=config)
+        result = pipeline.apply(img)
+
+        # 禁用时返回同一对象（无副作用）
+        assert result is img
+
+    def test_pipeline_enabled_changes_image(self):
+        """启用混淆后图像应有像素变化"""
         import random
+        from PIL import Image
+        from student_document_factory.document_obfuscation import DEFAULT_CONFIG, ObfuscationPipeline
+
         img = Image.open(TRANSCRIPT_TEMPLATE_1).convert("RGB")
         original_data = list(img.getdata())
 
-        rng = random.Random(42)
-        r = DocumentRandomizer(rng)
-        processed = r.apply_photo_simulation(img)
+        pipeline = ObfuscationPipeline(random.Random(42), config=DEFAULT_CONFIG)
+        processed = pipeline.apply(img)
         processed_data = list(processed.getdata())
 
-        # 至少有部分像素不同
         diff_count = sum(1 for a, b in zip(original_data, processed_data) if a != b)
-        assert diff_count > 0, "拍照模拟未改变任何像素"
+        assert diff_count > 0, "混淆管道未改变任何像素"
+
+    def test_photo_simulation_deterministic(self):
+        """同一 RNG seed 的 PhotoSimulation 产生相同结果"""
+        import random
+        from PIL import Image
+        from student_document_factory.document_obfuscation.photo_simulation import PhotoSimulation
+
+        img = Image.open(TRANSCRIPT_TEMPLATE_1).convert("RGB")
+        sim1 = PhotoSimulation(random.Random(42))
+        sim2 = PhotoSimulation(random.Random(42))
+        r1 = sim1.apply(img.copy())
+        r2 = sim2.apply(img.copy())
+        assert r1.tobytes() == r2.tobytes()
+
+    def test_photo_simulation_different_seeds(self):
+        """不同 seed 的 PhotoSimulation 结果应不同"""
+        import random
+        from PIL import Image
+        from student_document_factory.document_obfuscation.photo_simulation import PhotoSimulation
+
+        img = Image.open(TRANSCRIPT_TEMPLATE_1).convert("RGB")
+        r1 = PhotoSimulation(random.Random(1)).apply(img.copy())
+        r2 = PhotoSimulation(random.Random(2)).apply(img.copy())
+        assert r1.tobytes() != r2.tobytes()
+
+    def test_stains_at_least_one_type(self):
+        """污渍效果必须至少出现一种（100 个 RNG seed 实验）"""
+        import random
+        from PIL import Image
+        from student_document_factory.document_obfuscation.effects.stains import _sample_stain_params
+
+        for seed in range(100):
+            rng = random.Random(seed)
+            params = _sample_stain_params(rng, doc_type="")
+            assert len(params) >= 1, f"seed={seed} 产生了 0 个污渍"
+
+    def test_stains_fading_only_on_student_id(self):
+        """fading 效果仅在 student_id 文档类型中出现"""
+        import random
+        from student_document_factory.document_obfuscation.effects.stains import _sample_stain_params
+
+        # 大量 seed 测试非 student_id 文档不出现 fading
+        for seed in range(200):
+            rng = random.Random(seed)
+            params = _sample_stain_params(rng, doc_type="transcript")
+            types = {p["type"] for p in params}
+            assert "fading" not in types, f"seed={seed} transcript 出现了 fading"
+
+    def test_stains_wear_mud_on_all_docs(self):
+        """mud/wear 效果在所有文档类型中都有机会出现"""
+        import random
+        from student_document_factory.document_obfuscation.effects.stains import _sample_stain_params
+
+        seen_mud = seen_wear = False
+        for seed in range(500):
+            rng = random.Random(seed)
+            params = _sample_stain_params(rng, doc_type="transcript")
+            for p in params:
+                if p["type"] == "mud":
+                    seen_mud = True
+                if p["type"] == "wear":
+                    seen_wear = True
+            if seen_mud and seen_wear:
+                break
+        assert seen_mud, "500 次采样中未见 mud 效果（transcript）"
+        assert seen_wear, "500 次采样中未见 wear 效果（transcript）"
+
+    def test_stains_apply_does_not_crash(self, sample_harvard_data):
+        """apply_stains 对所有文档类型正常运行不崩溃"""
+        import random
+        from PIL import Image
+        from student_document_factory.document_obfuscation.effects.stains import apply_stains
+
+        img = Image.open(TRANSCRIPT_TEMPLATE_1).convert("RGB")
+        for doc_type in ["", "transcript", "invoice", "student_id"]:
+            rng = random.Random(42)
+            result = apply_stains(img.copy(), rng, doc_type=doc_type)
+            assert isinstance(result, Image.Image)
 
 
 class TestStudentInfoFactory:
