@@ -74,9 +74,9 @@ class ObfuscationPipeline:
         if cfg.stains:
             img = apply_stains(img, rng, doc_type, safe_zones=self._safe_zones)
 
-        # 2. 折痕（待实现，当前返回原图）
+        # 2. 折痕（safe_zones 透传，确保折痕不穿过核心数据区）
         if cfg.creases:
-            img = apply_creases(img, rng, doc_type)
+            img = apply_creases(img, rng, doc_type, safe_zones=self._safe_zones)
 
         # 3. 边缘裁剪（待实现，当前返回原图）
         if cfg.crop:

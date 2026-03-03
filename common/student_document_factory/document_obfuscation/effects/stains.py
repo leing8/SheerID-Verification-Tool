@@ -20,6 +20,7 @@ from typing import List, Optional, Tuple
 
 from PIL import Image
 
+from .utils import make_rs as _make_rs, to_float32 as _to_float32, to_uint8 as _to_uint8
 from ..safe_zone import SafeZone
 
 # ── 类型别名 ────────────────────────────────────────────────────────────────────
@@ -373,7 +374,7 @@ def _apply_fading(
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# 工具函数
+# 工具函数（stains 专属）
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def _gaussian_ellipse(
@@ -389,18 +390,3 @@ def _gaussian_ellipse(
     ys, xs = np.ogrid[:h, :w]
     dist = ((xs - cx) / max(rx, 1)) ** 2 + ((ys - cy) / max(ry, 1)) ** 2
     return np.exp(-dist * 2.0).astype(np.float32)
-
-
-def _make_rs(rng: random.Random) -> "numpy.random.RandomState":
-    """从 rng 创建 numpy RandomState（保证确定性）"""
-    import numpy as np
-    return np.random.RandomState(rng.randint(0, 2 ** 31 - 1))
-
-
-def _to_float32(arr: "numpy.ndarray") -> "numpy.ndarray":
-    return arr.astype("float32")
-
-
-def _to_uint8(arr: "numpy.ndarray") -> "numpy.ndarray":
-    import numpy as np
-    return np.clip(arr, 0, 255).astype(np.uint8)
