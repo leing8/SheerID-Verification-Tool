@@ -9,7 +9,8 @@ config.enabled=False 时直接返回原图，零开销。
   2. creases       — 折痕（物理损坏）
   3. crop          — 边缘裁剪（待实现）
   4. transform_3d  — 3D 透视 + 旋转（待实现）
-  5. photo_sim     — 光照 / 噪声 / 模糊 / JPEG（拍照光学）
+  5. background_scene — 背景场景叠加（桌面/地毯 + 文档透视变换）
+  6. photo_sim     — 光照 / 噪声 / 模糊 / JPEG（拍照光学）
 
 safe_zones 注入：
   调用方在构建 ObfuscationPipeline 时传入 list[SafeZone]，
@@ -23,6 +24,7 @@ from typing import List, Optional
 from PIL import Image
 
 from .config import DEFAULT_CONFIG, ObfuscationConfig
+from .effects.background_scene import apply_background_scene
 from .effects.creases import apply_creases
 from .effects.crop import apply_crop
 from .effects.stains import apply_stains
@@ -86,7 +88,12 @@ class ObfuscationPipeline:
         if cfg.transform_3d:
             img = apply_transform_3d(img, rng, doc_type)
 
-        # 5. 拍照模拟（光照 / 噪声 / 模糊 / JPEG）
+        # 5. 背景场景叠加（文档透视变换 + 桌面/地毯背景 + 投影阴影）
+        #    放在 photo_simulation 之前，使拍照模拟作用于完整照片
+        if cfg.background_scene:
+            img = apply_background_scene(img, rng, doc_type)
+
+        # 6. 拍照模拟（光照 / 噪声 / 模糊 / JPEG）
         if cfg.photo_simulation:
             sim = PhotoSimulation(rng)
             img = sim.apply(img)

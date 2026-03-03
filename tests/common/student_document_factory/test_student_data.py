@@ -109,10 +109,18 @@ class TestDataIntegrity:
             )
 
     def test_courses_match_program(self):
-        """课程列表应与专业匹配"""
+        """课程列表应从该专业课程池中抽取，且数量在 8-12 范围内"""
         for program, expected_courses in PROGRAM_COURSES.items():
             data = build("test-courses", program)
-            assert data.courses == expected_courses
+            # build() 随机抽取 8-12 门课，验证子集关系而非完全匹配
+            assert 8 <= len(data.courses) <= 12, (
+                f"{program}: 课程数 {len(data.courses)} 不在 [8, 12] 范围内"
+            )
+            pool_set = set(expected_courses)
+            for course in data.courses:
+                assert course in pool_set, (
+                    f"{program}: 课程 {course} 不在该专业课程池中"
+                )
 
     def test_tuition_matches_program(self):
         """学费应与专业匹配"""

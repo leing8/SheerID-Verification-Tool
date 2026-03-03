@@ -20,6 +20,7 @@ class ObfuscationConfig:
         crop:              边缘裁剪效果（当前未实现）。
         transform_3d:      3D 透视变换效果（当前未实现）。
         photo_simulation:  拍照模拟（光照 / 噪声 / 模糊 / JPEG 重编码）。
+        background_scene:  背景场景叠加（桌面/地毯等拍照背景 + 文档透视变换）。
     """
 
     enabled: bool = True
@@ -28,6 +29,7 @@ class ObfuscationConfig:
     crop: bool = True
     transform_3d: bool = True
     photo_simulation: bool = True
+    background_scene: bool = True
 
 
 # 默认配置：全部效果启用
@@ -39,6 +41,7 @@ PHOTO_ONLY_CONFIG = ObfuscationConfig(
     creases=False,
     crop=False,
     transform_3d=False,
+    background_scene=False,
 )
 
 # 完全禁用（调试 / 测试用）

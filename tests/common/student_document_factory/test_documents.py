@@ -133,14 +133,13 @@ class TestObfuscationPipeline:
         from student_document_factory.document_obfuscation import DEFAULT_CONFIG, ObfuscationPipeline
 
         img = Image.open(TRANSCRIPT_TEMPLATE_1).convert("RGB")
-        original_data = list(img.getdata())
+        original_bytes = img.tobytes()
 
         pipeline = ObfuscationPipeline(random.Random(42), config=DEFAULT_CONFIG)
         processed = pipeline.apply(img)
-        processed_data = list(processed.getdata())
+        processed_bytes = processed.tobytes()
 
-        diff_count = sum(1 for a, b in zip(original_data, processed_data) if a != b)
-        assert diff_count > 0, "混淆管道未改变任何像素"
+        assert original_bytes != processed_bytes, "混淆管道未改变任何像素"
 
     def test_photo_simulation_deterministic(self):
         """同一 RNG seed 的 PhotoSimulation 产生相同结果"""
