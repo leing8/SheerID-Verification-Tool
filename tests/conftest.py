@@ -17,8 +17,12 @@ conftest.py — pytest 共享 fixtures
 
     # ── 按模块运行 ──
     pytest tests/common/device_fingerprint_factory/ -v -s    # 设备指纹工厂
-    pytest tests/common/student_document_factory/ -v -s      # 学生文档工厂
+    pytest tests/common/student_document_factory/ -v -s      # 学生文档工厂（含 document_obfuscation）
     pytest tests/common/proxy_checker/ -v -s                 # 代理检测器
+
+    # ── 文档混淆（污渍）专项测试 ──
+    pytest tests/common/student_document_factory/document_obfuscation/ -v -s           # 全部污渍测试
+    pytest tests/common/student_document_factory/document_obfuscation/test_stains_output.py::TestSafeZones -v -s  # 安全区可视化
 
     # ── 运行单个测试文件 ──
     pytest tests/common/device_fingerprint_factory/test_verbose_output.py -v -s

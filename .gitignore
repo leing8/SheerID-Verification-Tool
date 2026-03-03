@@ -80,3 +80,6 @@ Thumbs.db
 .vite
 node_modules
 package-lock.json
+
+# test files
+tests/**/**/output

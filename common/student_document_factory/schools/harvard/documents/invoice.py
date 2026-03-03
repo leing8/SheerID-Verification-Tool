@@ -86,6 +86,40 @@ _FOOTER_TOTAL_OFFSET = (1020, 110)
 _INVOICE_CHAR_SPACING = 0
 
 
+def get_safe_zones(img_w: int, img_h: int) -> list:
+    """
+    返回学费发票图像的核心数据保护区列表（基于模板尺寸 1395×动态高）。
+
+    SheerID 审核要求以下字段必须清晰可读：
+      - To: 收件人地址（含学生姓名）
+      - Invoice Number / Invoice Date（证明文档真实性）
+      - Total Amount Due 头部大字金额（证明当前学期费用）
+      - 费用明细列表（课程/学期信息，证明当前在读）
+
+    保护区覆盖上述区域及合理边距，确保污渍不遮挡任何关键字段。
+    """
+    from ....document_obfuscation.safe_zone import SafeZone
+    c = _COORDS
+    return [
+        # ① To: 收件地址 (4 行，约 110px 高)
+        SafeZone(x1=c["to_name"][0], y1=c["to_name"][1],
+                 x2=700, y2=c["to_country"][1] + 30,
+                 padding=20, label="to_address"),
+        # ② ③ Invoice Number / Date（右侧区域）
+        SafeZone(x1=850, y1=c["invoice_number"][1],
+                 x2=img_w - 20, y2=c["invoice_date"][1] + 30,
+                 padding=20, label="invoice_number_and_date"),
+        # ④ Total Amount Due 头部大字金额
+        SafeZone(x1=850, y1=c["total_header"][1],
+                 x2=img_w - 20, y2=c["total_header"][1] + 55,
+                 padding=20, label="total_amount_due_header"),
+        # ⑤ Transactions 标签 + ⑥ 费用明细区（到页面底部）
+        SafeZone(x1=c["transactions_label"][0], y1=c["transactions_label"][1],
+                 x2=img_w - 20, y2=img_h - 20,
+                 padding=15, label="transactions_and_items"),
+    ]
+
+
 def generate_invoice(student: "HarvardStudentData",
                      output_format: str = "png") -> bytes:
     """
@@ -152,7 +186,8 @@ def generate_invoice(student: "HarvardStudentData",
     last_item_y = y + _ITEM_LINE_HEIGHT
     _overlay_footer(img, last_item_y, total_str, fonts)
 
-    return image_to_format(img, rng, output_format)
+    return image_to_format(img, rng, output_format, doc_type="invoice")
+
 
 
 def _overlay_footer(img: Image.Image, last_item_y: int,

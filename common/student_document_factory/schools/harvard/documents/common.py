@@ -153,6 +153,11 @@ def image_to_format(
     内部通过 ObfuscationPipeline 应用所有混淆效果（污渍 / 折痕 / 裁剪 /
     3D变换 / 拍照模拟），对调用方完全透明。
 
+    污渍 Rejection Sampling 所需的核心数据保护区（SafeZone）由每份文档
+    模块的 get_safe_zones() 提供，此处统一解析后注入流水线。
+    新增文档类型只需在对应模块内实现 get_safe_zones(w, h) 即可，
+    此函数的 _SAFE_ZONE_RESOLVERS 注册表添加一行。
+
     Args:
         img:           原始 PIL 图像。
         rng:           确定性随机数生成器（由 student_id 派生）。
@@ -163,7 +168,13 @@ def image_to_format(
     Returns:
         图像字节（PNG 或 JPEG）。
     """
-    pipeline = ObfuscationPipeline(rng, config=config, doc_type=doc_type)
+    # ── 解析核心数据保护区 ──────────────────────────────────────────────────────
+    # 按 doc_type 调用对应文档模块的 get_safe_zones()，注入到流水线。
+    # 新增文档类型：在此字典中添加 "doc_type": import_module 映射即可。
+    safe_zones = _resolve_safe_zones(doc_type, img.width, img.height)
+
+    pipeline = ObfuscationPipeline(rng, config=config, doc_type=doc_type,
+                                   safe_zones=safe_zones)
     img = pipeline.apply(img)
 
     buf = BytesIO()
@@ -175,6 +186,58 @@ def image_to_format(
     else:
         img.save(buf, format="PNG", optimize=True)
     return buf.getvalue()
+
+
+def _resolve_safe_zones(doc_type: str, img_w: int, img_h: int) -> list:
+    """
+    根据 doc_type 动态导入对应文档模块的 get_safe_zones() 并返回保护区列表。
+
+    支持的文档类型（每种在对应模块内实现 get_safe_zones(w, h) -> list[SafeZone]）：
+      - "transcript"  成绩单
+      - "student_id"  学生证
+      - "invoice"     学费发票
+      - "schedule"    课程表（模块实现后自动生效）
+
+    设计原则：
+      - 各文档模块自持坐标，common.py 不硬编码任何坐标
+      - 注册新文档类型：在此字典添加一行 + 新增对应 _safe_zones_*() 函数即可
+      - 未知 doc_type 返回空列表（无约束），不报错
+      - 惰性导入：仅在实际生成时解析，不影响启动速度
+    """
+    _resolvers = {
+        "transcript": _safe_zones_transcript,
+        "student_id": _safe_zones_student_id,
+        "invoice":    _safe_zones_invoice,
+        "schedule":   _safe_zones_schedule,   # 课程表（schedule.py 实现后生效）
+    }
+    resolver = _resolvers.get(doc_type)
+    if resolver is None:
+        return []
+    try:
+        return resolver(img_w, img_h)
+    except Exception:
+        return []  # 容错：保护区解析失败（如模块尚未实现）时不阻断文档生成
+
+
+def _safe_zones_transcript(w: int, h: int) -> list:
+    from .transcript import get_safe_zones
+    return get_safe_zones(w, h)
+
+
+def _safe_zones_student_id(w: int, h: int) -> list:
+    from .student_id import get_safe_zones
+    return get_safe_zones(w, h)
+
+
+def _safe_zones_invoice(w: int, h: int) -> list:
+    from .invoice import get_safe_zones
+    return get_safe_zones(w, h)
+
+
+def _safe_zones_schedule(w: int, h: int) -> list:
+    """课程表保护区（schedule.py 实现 get_safe_zones() 后自动生效）"""
+    from .schedule import get_safe_zones  # noqa: PLC0415
+    return get_safe_zones(w, h)
 
 
 # ============ 头像获取 ============

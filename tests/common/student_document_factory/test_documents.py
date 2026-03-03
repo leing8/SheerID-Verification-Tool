@@ -169,12 +169,13 @@ class TestObfuscationPipeline:
     def test_stains_at_least_one_type(self):
         """污渍效果必须至少出现一种（100 个 RNG seed 实验）"""
         import random
-        from PIL import Image
         from student_document_factory.document_obfuscation.effects.stains import _sample_stain_params
 
+        # 使用足够大的画布 + 无保护区，确保 Rejection Sampling 总能找到合法位置
+        img_size = (2000, 2000)
         for seed in range(100):
             rng = random.Random(seed)
-            params = _sample_stain_params(rng, doc_type="")
+            params = _sample_stain_params(rng, doc_type="", img_size=img_size, safe_zones=[])
             assert len(params) >= 1, f"seed={seed} 产生了 0 个污渍"
 
     def test_stains_fading_only_on_student_id(self):
@@ -182,10 +183,11 @@ class TestObfuscationPipeline:
         import random
         from student_document_factory.document_obfuscation.effects.stains import _sample_stain_params
 
+        img_size = (2000, 2000)
         # 大量 seed 测试非 student_id 文档不出现 fading
         for seed in range(200):
             rng = random.Random(seed)
-            params = _sample_stain_params(rng, doc_type="transcript")
+            params = _sample_stain_params(rng, doc_type="transcript", img_size=img_size, safe_zones=[])
             types = {p["type"] for p in params}
             assert "fading" not in types, f"seed={seed} transcript 出现了 fading"
 
@@ -194,10 +196,11 @@ class TestObfuscationPipeline:
         import random
         from student_document_factory.document_obfuscation.effects.stains import _sample_stain_params
 
+        img_size = (2000, 2000)
         seen_mud = seen_wear = False
         for seed in range(500):
             rng = random.Random(seed)
-            params = _sample_stain_params(rng, doc_type="transcript")
+            params = _sample_stain_params(rng, doc_type="transcript", img_size=img_size, safe_zones=[])
             for p in params:
                 if p["type"] == "mud":
                     seen_mud = True

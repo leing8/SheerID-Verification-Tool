@@ -37,13 +37,13 @@ if TYPE_CHECKING:
 
 _COORDS = {
     # ISSUED TO: 下方地址区域（4行）
-    "issued_to_lines": (73, 185),
+    "issued_to_lines": (70, 185),
     # Name: / ID: / Printed:
-    "name":       (90,  359),
-    "student_id": (90,  375),
-    "printed":    (655, 359),
+    "name":       (87,  359),
+    "student_id": (87,  375),
+    "printed":    (652, 359),
     # 课程区域
-    "semester_label":  (40, 450),
+    "semester_label":  (37, 450),
     "courses_start_y": 468,
     "course_cols": {
         "course":  120,
@@ -58,6 +58,32 @@ _COURSE_LINE_HEIGHT = 15
 
 # 底部声明与课程末行的间距（像素）
 _FOOTER_GAP = 30
+
+
+def get_safe_zones(img_w: int, img_h: int) -> list:
+    """
+    返回成绩单图像的核心数据保护区列表。
+
+    SheerID 审核要求以下字段必须清晰可读：
+      - 学生姓名（ISSUED TO 地址区 + Name 行）
+      - 学号（ID 行）
+      - 学校与学期信息（学期标签 + 课程列表）
+      - 打印日期（Printed 行）
+
+    保护区覆盖上述区域及合理边距，确保污渍不遮挡任何关键字段。
+    """
+    from ....document_obfuscation.safe_zone import SafeZone
+    return [
+        # ISSUED TO: 下方学生地址（4 行，约 60px 高）
+        SafeZone(x1=50, y1=175, x2=img_w - 20, y2=270,
+                 padding=15, label="issued_to_address"),
+        # Name: / ID: / Printed: 行
+        SafeZone(x1=50, y1=345, x2=img_w - 20, y2=395,
+                 padding=15, label="name_id_printed"),
+        # 学期标签 + 完整课程列表区域（从标签到页面底部）
+        SafeZone(x1=20, y1=435, x2=img_w - 20, y2=img_h - 20,
+                 padding=10, label="semester_and_courses"),
+    ]
 
 
 def _get_semester(rng) -> str:
@@ -123,7 +149,8 @@ def generate_transcript(student: "HarvardStudentData",
     last_course_y = y
     img = _splice_footer(img, last_course_y, rng)
 
-    return image_to_format(img, rng, output_format)
+    return image_to_format(img, rng, output_format, doc_type="transcript")
+
 
 
 def _splice_footer(img: Image.Image, last_course_y: int,

@@ -1,26 +1,32 @@
 """
 document_obfuscation.effects.stains — 文档污渍效果
 
-实现三种物理污渍子类型，所有文档均支持，通过唯一 ID 确定性决定组合：
+实现三种物理污渍子类型：
 
-  mud     — 泥块：深棕不规则斑块，多层重叠椭圆 + 模糊边缘，支持全部文档
-  wear    — 磨损：纸面局部变浅/褪白，纹理感，支持全部文档
+  mud     — 泥块：深棕不规则斑块，多层重叠椭圆 + 模糊边缘
+  wear    — 磨损：纸面局部变浅/褪白，纹理感
   fading  — 掉色：局部向灰偏移，饱和度降低，仅限 student_id
 
 设计原则：
   - 确定性：使用传入的 rng（由 student_id 派生），相同 seed 必定相同结果
-  - 从唯一ID确定是否出现每种污渍（独立 bit 判断），至少保证 1 种出现
-  - 污渍中心约束在图像边缘 20% 区域，不遮挡核心信息字段
+  - Rejection Sampling：污渍中心在整图范围内随机采样，自动绕开所有 SafeZone
+    （核心数据区）；全部候选被排除则跳过该污渍，宁可少污渍也不遮挡关键信息
+  - 通用性：safe_zones 由调用方传入，stains.py 无需知道文档细节
   - 效果叠加自然：各污渍独立蒙版，顺序为 mud → wear → fading
 """
 
 import random
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 
 from PIL import Image
 
+from ..safe_zone import SafeZone
+
 # ── 类型别名 ────────────────────────────────────────────────────────────────────
 Color = Tuple[int, int, int]
+
+# Rejection Sampling 最大重试次数
+_MAX_SAMPLE_TRIES = 50
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -31,15 +37,18 @@ def apply_stains(
     img: Image.Image,
     rng: random.Random,
     doc_type: str = "",
+    safe_zones: Optional[List[SafeZone]] = None,
 ) -> Image.Image:
     """
     对图像应用污渍效果（主入口）。
 
     Args:
-        img:       输入 PIL 图像（RGB）。
-        rng:       确定性随机数生成器（由调用方以 student_id 作为 seed 创建）。
-        doc_type:  文档类型字符串（"student_id" / "transcript" / "invoice" / ""）。
-                   fading 仅限 student_id，其余子类型全部文档均支持。
+        img:        输入 PIL 图像（RGB）。
+        rng:        确定性随机数生成器（由调用方以 student_id 作为 seed 创建）。
+        doc_type:   文档类型字符串（"student_id" / "transcript" / "invoice" / ""）。
+                    fading 仅限 student_id，其余子类型全部文档均支持。
+        safe_zones: 核心数据保护区列表。污渍中心通过 Rejection Sampling 自动绕开
+                    所有保护区。None 或空列表表示无保护区约束（污渍可出现在任意位置）。
 
     Returns:
         应用污渍后的 PIL 图像（RGB）。
@@ -49,7 +58,8 @@ def apply_stains(
     except ImportError:
         return img
 
-    params = _sample_stain_params(rng, doc_type)
+    zones: List[SafeZone] = safe_zones or []
+    params = _sample_stain_params(rng, doc_type, img.size, zones)
     if not params:
         return img
 
@@ -66,12 +76,45 @@ def apply_stains(
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# 中心采样（Rejection Sampling）
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def _sample_center(
+    rng: random.Random,
+    img_w: int,
+    img_h: int,
+    rx: int,
+    ry: int,
+    safe_zones: List[SafeZone],
+) -> Optional[Tuple[int, int]]:
+    """
+    在整图范围内随机采样污渍中心，自动绕开所有 SafeZone。
+
+    采样范围：[rx, w-rx] × [ry, h-ry]，确保椭圆不超出图像边界。
+    最多重试 _MAX_SAMPLE_TRIES 次；全部失败返回 None（跳过此污渍）。
+    """
+    lo_x = rx
+    hi_x = max(lo_x + 1, img_w - rx)
+    lo_y = ry
+    hi_y = max(lo_y + 1, img_h - ry)
+
+    for _ in range(_MAX_SAMPLE_TRIES):
+        cx = rng.randint(lo_x, hi_x)
+        cy = rng.randint(lo_y, hi_y)
+        if not any(z.conflicts(cx, cy, rx, ry) for z in safe_zones):
+            return cx, cy
+    return None
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # 参数采样
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def _sample_stain_params(
     rng: random.Random,
     doc_type: str,
+    img_size: Tuple[int, int],
+    safe_zones: List[SafeZone],
 ) -> List[dict]:
     """
     根据 RNG 确定性地决定本次出现哪些污渍类型及各自参数。
@@ -80,11 +123,12 @@ def _sample_stain_params(
       - 用 3 个独立随机数分别判断 mud / wear / fading 是否出现
       - fading 仅在 doc_type == "student_id" 时才参与判断
       - 至少保证 1 种出现（若全部抽中不出现，则强制 mud 出现）
-      - 每种出现的类型固定生成 1 个实例
+      - 各参数通过 _sample_center() Rejection Sampling 确定中心位置
+      - 若某类型找不到合法中心则跳过（宁可少污渍也不遮挡关键字段）
     """
     is_student_id = doc_type == "student_id"
+    w, h = img_size
 
-    # 独立概率判断各类型是否出现
     has_mud    = rng.random() < 0.75   # 75% 概率
     has_wear   = rng.random() < 0.55   # 55% 概率
     has_fading = (rng.random() < 0.50) if is_student_id else False  # 50%，仅学生证
@@ -95,28 +139,43 @@ def _sample_stain_params(
 
     params = []
     if has_mud:
-        params.append(_mud_params(rng))
+        p = _mud_params(rng, w, h, safe_zones)
+        if p is not None:
+            params.append(p)
     if has_wear:
-        params.append(_wear_params(rng))
+        p = _wear_params(rng, w, h, safe_zones)
+        if p is not None:
+            params.append(p)
     if has_fading:
-        params.append(_fading_params(rng))
+        p = _fading_params(rng, w, h, safe_zones)
+        if p is not None:
+            params.append(p)
 
     return params
 
 
-def _mud_params(rng: random.Random, corner: str | None = None) -> dict:
-    """采样泥块污渍参数"""
-    if corner is None:
-        corner = rng.choice(["tl", "tr", "bl", "br"])
+def _mud_params(
+    rng: random.Random,
+    img_w: int,
+    img_h: int,
+    safe_zones: List[SafeZone],
+) -> Optional[dict]:
+    """采样泥块污渍参数；若找不到合法中心返回 None"""
+    rx = rng.randint(50, 140)
+    ry = rng.randint(40, 110)
+    center = _sample_center(rng, img_w, img_h, rx, ry, safe_zones)
+    if center is None:
+        return None
+    cx, cy = center
     return {
         "type":    "mud",
-        "corner":  corner,
-        "rx":      rng.randint(50, 140),      # 椭圆 x 半径（明显更大）
-        "ry":      rng.randint(40, 110),      # 椭圆 y 半径
-        "layers":  rng.randint(4, 8),         # 更多层数，更不规则
-        "opacity": rng.uniform(0.50, 0.82),   # 大幅提高不透明度（原 0.20~0.45）
-        "blur_r":  rng.randint(3, 7),         # 较小模糊 → 边缘更粗糙
-        # 泥块颜色：深棕 / 黑棕，深色调
+        "cx":      cx,
+        "cy":      cy,
+        "rx":      rx,
+        "ry":      ry,
+        "layers":  rng.randint(4, 8),
+        "opacity": rng.uniform(0.50, 0.82),
+        "blur_r":  rng.randint(3, 7),
         "color": (
             rng.randint(25, 75),   # R — 深棕
             rng.randint(15, 55),   # G
@@ -125,33 +184,53 @@ def _mud_params(rng: random.Random, corner: str | None = None) -> dict:
     }
 
 
-def _wear_params(rng: random.Random, corner: str | None = None) -> dict:
-    """采样磨损污渍参数"""
-    if corner is None:
-        corner = rng.choice(["tl", "tr", "bl", "br"])
+def _wear_params(
+    rng: random.Random,
+    img_w: int,
+    img_h: int,
+    safe_zones: List[SafeZone],
+) -> Optional[dict]:
+    """采样磨损污渍参数；若找不到合法中心返回 None"""
+    rx = rng.randint(60, 140)
+    ry = rng.randint(50, 110)
+    center = _sample_center(rng, img_w, img_h, rx, ry, safe_zones)
+    if center is None:
+        return None
+    cx, cy = center
     return {
         "type":      "wear",
-        "corner":    corner,
-        "rx":        rng.randint(60, 140),      # 更大范围区域
-        "ry":        rng.randint(50, 110),
-        "opacity":   rng.uniform(0.40, 0.70),   # 更强（原 0.12~0.30）
-        "noise_amt": rng.uniform(20.0, 50.0),   # 更强纸纤维噪声（原 8~20）
+        "cx":        cx,
+        "cy":        cy,
+        "rx":        rx,
+        "ry":        ry,
+        "opacity":   rng.uniform(0.40, 0.70),
+        "noise_amt": rng.uniform(20.0, 50.0),
         "blur_r":    rng.randint(8, 16),
     }
 
 
-def _fading_params(rng: random.Random, corner: str | None = None) -> dict:
-    """采样掉色污渍参数（仅学生证）"""
-    if corner is None:
-        corner = rng.choice(["tl", "tr", "bl", "br"])
+def _fading_params(
+    rng: random.Random,
+    img_w: int,
+    img_h: int,
+    safe_zones: List[SafeZone],
+) -> Optional[dict]:
+    """采样掉色污渍参数（仅学生证）；若找不到合法中心返回 None"""
+    rx = rng.randint(70, 150)
+    ry = rng.randint(60, 120)
+    center = _sample_center(rng, img_w, img_h, rx, ry, safe_zones)
+    if center is None:
+        return None
+    cx, cy = center
     return {
         "type":       "fading",
-        "corner":     corner,
-        "rx":         rng.randint(70, 150),
-        "ry":         rng.randint(60, 120),
-        "sat_factor": rng.uniform(0.02, 0.25),  # 几乎完全去色（原 0.20~0.55）
-        "val_factor": rng.uniform(0.50, 0.78),  # 明显压暗（原 0.70~0.92）
-        "opacity":    rng.uniform(0.55, 0.85),  # 更深混合（原 0.25~0.50）
+        "cx":         cx,
+        "cy":         cy,
+        "rx":         rx,
+        "ry":         ry,
+        "sat_factor": rng.uniform(0.02, 0.25),
+        "val_factor": rng.uniform(0.50, 0.78),
+        "opacity":    rng.uniform(0.55, 0.85),
         "blur_r":     rng.randint(10, 20),
     }
 
@@ -169,22 +248,20 @@ def _apply_mud(
     泥块效果：
       - 多层略偏移的高斯椭圆蒙版叠加，形成不规则边界
       - 边缘经高斯模糊软化
-      - 颜色为深棕黑，叠加到图像角落
+      - 颜色为深棕黑，叠加到图像指定位置
     """
     import numpy as np
     from PIL import Image, ImageFilter
 
     h, w = arr.shape[:2]
-    cx, cy = _corner_center(p["corner"], w, h, p["rx"], p["ry"])
+    cx, cy = p["cx"], p["cy"]
 
     # 累积蒙版（多层叠加）
     combined_mask = np.zeros((h, w), dtype=np.float32)
     for _ in range(p["layers"]):
         ox = rng.randint(-p["rx"] // 3, p["rx"] // 3)
         oy = rng.randint(-p["ry"] // 3, p["ry"] // 3)
-        lx = cx + ox
-        ly = cy + oy
-        combined_mask += _gaussian_ellipse(h, w, lx, ly, p["rx"], p["ry"])
+        combined_mask += _gaussian_ellipse(h, w, cx + ox, cy + oy, p["rx"], p["ry"])
 
     # 归一化 + 截断
     combined_mask = np.clip(combined_mask / p["layers"] * 1.5, 0.0, 1.0)
@@ -194,10 +271,8 @@ def _apply_mud(
     mask_img = mask_img.filter(ImageFilter.GaussianBlur(radius=p["blur_r"]))
     combined_mask = np.array(mask_img, dtype=np.float32) / 255.0
 
-    # 应用不透明度
+    # 应用不透明度并混合
     alpha = combined_mask[:, :, np.newaxis] * p["opacity"]
-
-    # 混合：arr * (1 - alpha) + mud_color * alpha
     mud_color = np.array(p["color"], dtype=np.float32)
     arr = arr * (1.0 - alpha) + mud_color * alpha
 
@@ -223,7 +298,7 @@ def _apply_wear(
     from PIL import Image, ImageFilter
 
     h, w = arr.shape[:2]
-    cx, cy = _corner_center(p["corner"], w, h, p["rx"], p["ry"])
+    cx, cy = p["cx"], p["cy"]
 
     mask = _gaussian_ellipse(h, w, cx, cy, p["rx"], p["ry"])
 
@@ -237,7 +312,7 @@ def _apply_wear(
     noise = rs.normal(0, p["noise_amt"], (h, w, 1)).astype(np.float32)
     noise = np.clip(noise, 0, None)  # 只增亮
 
-    # 向白色(255)方向强力提亮（原 alpha*0.3 → alpha*0.60）
+    # 向白色(255)方向强力提亮
     alpha = mask[:, :, np.newaxis] * p["opacity"]
     white = np.full_like(arr, 255.0)
     arr = arr * (1.0 - alpha) + (arr + noise) * alpha
@@ -265,7 +340,7 @@ def _apply_fading(
     from PIL import Image, ImageFilter
 
     h, w = arr.shape[:2]
-    cx, cy = _corner_center(p["corner"], w, h, p["rx"], p["ry"])
+    cx, cy = p["cx"], p["cy"]
 
     mask = _gaussian_ellipse(h, w, cx, cy, p["rx"], p["ry"])
 
@@ -300,30 +375,6 @@ def _apply_fading(
 # ═══════════════════════════════════════════════════════════════════════════════
 # 工具函数
 # ═══════════════════════════════════════════════════════════════════════════════
-
-def _corner_center(
-    corner: str,
-    w: int,
-    h: int,
-    rx: int,
-    ry: int,
-) -> Tuple[int, int]:
-    """
-    根据角落标识计算污渍中心坐标。
-    中心约束在距对应边 20% 以内（最大短边的 20%），确保主体内容不被遮挡。
-    """
-    edge_x = max(rx, int(w * 0.20))
-    edge_y = max(ry, int(h * 0.20))
-
-    if corner == "tl":
-        return edge_x, edge_y
-    elif corner == "tr":
-        return w - edge_x, edge_y
-    elif corner == "bl":
-        return edge_x, h - edge_y
-    else:  # br
-        return w - edge_x, h - edge_y
-
 
 def _gaussian_ellipse(
     h: int,

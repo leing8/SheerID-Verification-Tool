@@ -29,15 +29,50 @@ if TYPE_CHECKING:
 # ============ 学生证模板坐标（基于 harvard-student-id.png）============
 
 _COORDS = {
-    "photo":      (52, 40, 244, 240),    # 头像区域 (x1, y1, x2, y2)
-    "birthday":   (377, 220),            # 生日（STUDENT 下方）
-    "name":       (25, 247),             # 姓名
-    "id_number":  (25, 278),             # 学号
-    "sp_label":   (205, 278),            # SP 标识
-    "valid_thru": (423, 278),            # 过期日期
-    "barcode":    (25, 316, 240, 366),   # 条形码扰乱区域
-    "school_code": (480, 335),           # 学院缩写（右下角，动态渲染）
+    "photo":      (48, 32, 242, 235),    # 头像区域 (x1, y1, x2, y2)
+    "birthday":   (373, 212),            # 生日（STUDENT 下方）
+    "name":       (21, 243),             # 姓名
+    "id_number":  (21, 273),             # 学号
+    "sp_label":   (201, 273),            # SP 标识
+    "valid_thru": (419, 273),            # 过期日期
+    "barcode":    (21, 308, 234, 359),   # 条形码扰乱区域
+    "school_code": (476, 330),           # 学院缩写（右下角，动态渲染）
 }
+
+
+def get_safe_zones(img_w: int, img_h: int) -> list:
+    """
+    返回学生证图像的核心数据保护区列表。
+
+    SheerID 审核要求以下字段必须清晰可读：
+      - 学生头像（证件照）
+      - 学生姓名（大写）
+      - 学号
+      - 有效期（VALID THRU）
+      - 生日
+
+    保护区覆盖上述区域及合理边距，确保污渍不遮挡任何关键字段。
+    """
+    from ....document_obfuscation.safe_zone import SafeZone
+    p = _COORDS
+    return [
+        # 头像区域（关键身份标识）
+        SafeZone(x1=p["photo"][0], y1=p["photo"][1],
+                 x2=p["photo"][2], y2=p["photo"][3],
+                 padding=15, label="photo"),
+        # 生日行
+        SafeZone(x1=p["birthday"][0], y1=p["birthday"][1],
+                 x2=img_w - 10, y2=p["birthday"][1] + 30,
+                 padding=12, label="birthday"),
+        # 姓名行
+        SafeZone(x1=p["name"][0], y1=p["name"][1],
+                 x2=img_w - 10, y2=p["name"][1] + 30,
+                 padding=12, label="name"),
+        # 学号 + SP + VALID THRU 行
+        SafeZone(x1=p["id_number"][0], y1=p["id_number"][1],
+                 x2=img_w - 10, y2=p["id_number"][1] + 30,
+                 padding=12, label="id_and_valid_thru"),
+    ]
 
 
 def generate_student_id_card(student: "HarvardStudentData",
