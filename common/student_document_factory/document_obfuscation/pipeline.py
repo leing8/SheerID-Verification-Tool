@@ -106,9 +106,9 @@ class ObfuscationPipeline:
 
         # ── Step 3: 边缘裁剪 ─────────────────────────────────────────────────
         # 输入 RGB → 输出 RGB
-        # safe_zones 透传（待实现时启用），确保裁剪不截断核心数据区域
+        # safe_zones 透传，确保裁剪不截断核心数据区域（含 expanded_bounds padding）
         if cfg.crop:
-            img = apply_crop(img, rng, doc_type)
+            img = apply_crop(img, rng, doc_type, safe_zones=self._safe_zones)
 
         # ── Step 4: 3D 透视变换 ──────────────────────────────────────────────
         # 输入 RGB → 输出 RGBA（透明区域 = 文档轮廓外的空白）
