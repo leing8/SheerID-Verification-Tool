@@ -277,24 +277,18 @@ def _render_lighting_gradient(
     # 指数衰减系数（0=折痕处，1=远端）
     t = np.exp(-decay * abs_dist / max(grad_width, 1))
 
-    coeff = np.ones(len(indices), dtype=np.float32)
-
+    # 向量化计算（无硬截断，指数衰减自然趋近 1.0）
+    # positive 侧 = 下/右；negative 侧 = 上/左
     if specular_side == "positive":
-        # positive 侧（下/右）为迎光面 → 提亮
-        # negative 侧（上/左）为背光面 → 压暗
-        for i, d in enumerate(dist):
-            if d > 0 and abs_dist[i] <= grad_width:
-                coeff[i] = 1.0 + (bright - 1.0) * t[i]
-            elif d < 0 and abs_dist[i] <= grad_width:
-                coeff[i] = 1.0 + (dark - 1.0) * t[i]
+        bright_mask = dist > 0   # 迎光面
+        dark_mask   = dist < 0   # 背光面
     else:
-        # negative 侧（上/左）为迎光面 → 提亮
-        # positive 侧（下/右）为背光面 → 压暗
-        for i, d in enumerate(dist):
-            if d < 0 and abs_dist[i] <= grad_width:
-                coeff[i] = 1.0 + (bright - 1.0) * t[i]
-            elif d > 0 and abs_dist[i] <= grad_width:
-                coeff[i] = 1.0 + (dark - 1.0) * t[i]
+        bright_mask = dist < 0   # 迎光面
+        dark_mask   = dist > 0   # 背光面
+
+    coeff = np.ones(len(indices), dtype=np.float32)
+    coeff[bright_mask] = 1.0 + (bright - 1.0) * t[bright_mask]
+    coeff[dark_mask]   = 1.0 + (dark   - 1.0) * t[dark_mask]
 
     if axis == "horizontal":
         mult = coeff[:, np.newaxis, np.newaxis]   # (H, 1, 1)

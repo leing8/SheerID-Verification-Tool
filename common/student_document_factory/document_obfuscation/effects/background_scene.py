@@ -290,8 +290,15 @@ def _paste_shadow(
     else:
         alpha_ch = Image.new("L", (doc_w, doc_h), 255)
 
+    # 阴影 padding：为高斯模糊留出扩散空间（3× blur 半径覆盖 ~99.7% 能量）
+    sh_pad = int(shadow_blur * 3) + 2
+    padded_w = doc_w + sh_pad * 2
+    padded_h = doc_h + sh_pad * 2
+    padded_alpha = Image.new("L", (padded_w, padded_h), 0)
+    padded_alpha.paste(alpha_ch, (sh_pad, sh_pad))
+
     # 将 alpha 映射为暗灰色阴影
-    shadow_arr = np.array(alpha_ch, dtype=np.float32) * shadow_opacity
+    shadow_arr = np.array(padded_alpha, dtype=np.float32) * shadow_opacity
     shadow_gray = Image.fromarray(shadow_arr.clip(0, 255).astype(np.uint8), mode="L")
     shadow_gray = shadow_gray.filter(ImageFilter.GaussianBlur(radius=shadow_blur))
 
@@ -300,10 +307,11 @@ def _paste_shadow(
     bg_h, bg_w = bg_arr.shape[:2]
     sh_arr = np.array(shadow_gray, dtype=np.float32) / 255.0
 
-    sh_x1 = offset_x + shadow_dx
-    sh_y1 = offset_y + shadow_dy
-    sh_x2 = sh_x1 + doc_w
-    sh_y2 = sh_y1 + doc_h
+    # 阴影粘贴位置（考虑 padding 偏移 + 光源方向偏移）
+    sh_x1 = offset_x + shadow_dx - sh_pad
+    sh_y1 = offset_y + shadow_dy - sh_pad
+    sh_x2 = sh_x1 + padded_w
+    sh_y2 = sh_y1 + padded_h
 
     # 裁剪到背景范围内
     sx_start = max(0, sh_x1)
