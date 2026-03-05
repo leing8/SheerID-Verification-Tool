@@ -27,7 +27,7 @@ class ObfuscationConfig:
     creases: bool = True
     crop: bool = True
     transform_3d: bool = True
-    background_scene: bool = True
+    background_scene: bool = False
 
 
 # 默认配置：全部效果启用

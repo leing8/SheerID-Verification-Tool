@@ -32,7 +32,7 @@ OUTPUT_DIR = Path(__file__).parent.parent.parent / "output" / "student_docs"
 # ============ 可配置区域（修改后直接运行测试即可查看效果）============
 
 # 固定 vid 确保确定性（修改此值可生成不同学生）
-SAMPLE_VID = "test-verification-id-12345678-abcdef2026-3-5 12:49:02"
+SAMPLE_VID = "69a93d533d18d46974b29458"
 
 # 混淆配置（默认全部关闭，仅查看原始文档内容）
 # 如需查看某个混淆效果，将 enabled 设为 True 并开启对应效果：
@@ -58,7 +58,7 @@ OBFUSCATION_CONFIG = ObfuscationConfig(
     creases=True,
     crop=True,
     transform_3d=True,
-    background_scene=True,
+    background_scene=False,
 )
 
 

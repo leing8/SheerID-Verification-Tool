@@ -31,7 +31,10 @@ _HMAC_KEY = b"device-fingerprint-salt-v1"
 # ============================================================
 # Chrome 版本配置
 # 版本号必须与 curl_cffi impersonate 对应
-# curl_cffi v0.14.0 支持: chrome124, chrome130, chrome131, chrome133, chrome136, chrome145
+# 支持版本 (实际检测自 curl_cffi BrowserType):
+#   chrome119, chrome120, chrome123, chrome124,
+#   chrome131, chrome133a, chrome136, chrome142
+# ⚠️  chrome130 不在 BrowserType 中，已移除
 # ============================================================
 
 # 每个版本条目: (精确版本号, curl_cffi impersonate 名称, sec-ch-ua 字符串)
@@ -41,17 +44,13 @@ CHROME_VERSION_MAP = {
         "version": "136.0.7103.93",
         "sec_ch_ua": '"Chromium";v="136", "Google Chrome";v="136", "Not?A_Brand";v="99"',
     },
-    "chrome133": {
+    "chrome133a": {
         "version": "133.0.6943.142",
         "sec_ch_ua": '"Not(A:Brand";v="99", "Google Chrome";v="133", "Chromium";v="133"',
     },
     "chrome131": {
         "version": "131.0.6778.140",
         "sec_ch_ua": '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
-    },
-    "chrome130": {
-        "version": "130.0.6723.117",
-        "sec_ch_ua": '"Chromium";v="130", "Google Chrome";v="130", "Not?A_Brand";v="99"',
     },
     "chrome124": {
         "version": "124.0.6367.201",
@@ -60,15 +59,15 @@ CHROME_VERSION_MAP = {
 }
 
 # 按权重排列 (最新版本最高概率，符合真实用户分布)
-# 2026-02 真实世界分布: chrome136 ~55%, chrome133 ~20%, chrome131 ~10%, chrome130 ~8%
+# 2026-02 真实世界分布: chrome136 ~55%, chrome133 ~20%, chrome131 ~15%, chrome124 ~10%
 CHROME_IMPERSONATE_KEYS = [
     "chrome136",   # 最新稳定版 — 最高概率
     "chrome136",
     "chrome136",
     "chrome136",
-    "chrome133",   # 次新 — 中等概率
+    "chrome133a",  # 次新 — 中等概率
     "chrome131",   # 较旧 — 低概率
-    "chrome130",   # 较旧 — 低概率
+    "chrome131",   # 较旧 — 低概率 (替换原 chrome130 槽位)
 ]
 
 # 向后兼容: 精确版本号列表 (供外部引用)

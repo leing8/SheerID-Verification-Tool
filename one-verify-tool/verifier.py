@@ -402,12 +402,11 @@ class GeminiVerifier:
             random_delay(1500, 4000)
 
             # 步骤4: 上传文档
-            # 官方 API 流程:
-            #   POST /step/docUpload  → 获取每份文件的 S3 预签名 uploadUrl
-            #   PUT  <uploadUrl>      → 将文件内容上传到 S3
-            #   完成后服务端直接将 currentStep 设为 pending 或 success
-            #   ⚠️  官方文档中不存在 completeDocUpload 步骤
-            # 参考: https://developer.sheerid.com/tutorials/apis/api-walkthrough#doc-upload
+            # 官方 API 流程 (https://developer.sheerid.com/tutorials/apis/api-walkthrough#doc-upload):
+            #   步骤 4a: POST /step/docUpload  → 返回 documents[].uploadUrl 和 submissionUrl
+            #   步骤 4b: PUT  <uploadUrl>      → 将文件内容上传到 S3
+            #   步骤 4c: POST <submissionUrl>  → 通知 SheerID 所有文件已传完
+            #              服务端返回最终 currentStep: pending 或 success
             print(f"   ▶ 步骤 4/4: 上传文档 ({len(documents)} 份)...")
             upload_body = {
                 "files": [
@@ -429,7 +428,11 @@ class GeminiVerifier:
             if not data.get("documents"):
                 return {"success": False, "error": "没有上传 URL (documents 字段为空)"}
 
-            # 逐一上传每份文档到对应的 S3 预签名 URL
+            # 提取 submissionUrl（步骤 4c 需要用到）和各文档的 uploadUrl
+            # 官方文档: docUpload 响应中同时包含 documents[].uploadUrl 和 submissionUrl
+            submission_url = data.get("submissionUrl", "")
+
+            # 步骤 4b: 逐一上传每份文档到对应的 S3 预签名 URL
             # 官方文档: response.documents 顺序与 request.files 一致
             upload_slots = data["documents"]
             for i, ((doc_name, doc_bytes), slot) in enumerate(zip(documents, upload_slots)):
@@ -443,9 +446,36 @@ class GeminiVerifier:
                 if i < len(documents) - 1:
                     random_delay(800, 2000)  # 模拟用户逐个选择文件的间隔
 
-            # ── 解析 docUpload 结果 ────────────────────────────────────────────
-            # 官方文档: POST /step/docUpload 本身直接返回 pending 或 success
-            # statusUrl 字段: 用于后续轮询状态
+            # 步骤 4c: 通知 SheerID 所有文件已上传完毕，获取最终审核状态
+            # 官方文档: "The response will also contain a submission URL,
+            #            to be used after all files have been uploaded."
+            # submissionUrl 由 SheerID 动态返回，通常是 /step/completeDocUpload 或同等端点
+            random_delay(1000, 2000)  # 模拟用户点击提交按钮
+            print(f"     📬 通知 SheerID 上传完成...")
+
+            if submission_url:
+                # 使用官方返回的完整 submissionUrl（直接调用，不走 _request 的端点前缀）
+                try:
+                    headers = self.identity.get_headers(for_sheerid=True)
+                    resp = self.client.request(
+                        "POST", submission_url, json=None, headers=headers
+                    )
+                    try:
+                        submit_data = resp.json() if resp.text else {}
+                    except Exception:
+                        submit_data = {"_text": resp.text}
+                    data = submit_data  # 用最终响应覆盖
+                    print(f"     📡 submissionUrl 状态: HTTP {resp.status_code}")
+                except Exception as e:
+                    print(f"     ⚠️  submissionUrl 请求失败: {e}, 使用 docUpload 响应作为结果")
+            else:
+                # 无 submissionUrl 时：回退到 GET 当前状态（避免停在 docUpload）
+                print(f"     ⚠️  响应中无 submissionUrl，查询当前状态...")
+                fallback_data, _ = self._request("GET", f"/verification/{self.vid}")
+                if fallback_data.get("currentStep"):
+                    data = fallback_data
+
+            # ── 解析最终状态 ────────────────────────────────────────────────────
             final_step = data.get("currentStep", "unknown")
             status_url = data.get("statusUrl")
             print(f"     📍 最终步骤: {final_step}")

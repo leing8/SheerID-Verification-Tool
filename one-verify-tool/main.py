@@ -17,6 +17,8 @@ Google 已将 Gemini 学生验证限制为仅限美国新注册用户
 - 匹配美国位置的住宅代理 (强烈推荐)
 
 Author: ThanhNguyxn
+
+python main.py "https://services.sheerid.com/verify/67c8c14f5f17a83b745e3f82/?verificationId=69a93d533d18d46974b29458" --proxy "http://o0_1742954320-shl-106964-1:59395f3e@14.119.66.147:30806" --poll --poll-timeout 120
 """
 
 import argparse
