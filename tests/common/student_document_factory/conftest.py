@@ -32,7 +32,7 @@ OUTPUT_DIR = Path(__file__).parent.parent.parent / "output" / "student_docs"
 # ============ 可配置区域（修改后直接运行测试即可查看效果）============
 
 # 固定 vid 确保确定性（修改此值可生成不同学生）
-SAMPLE_VID = "test-verification-id-12345678-abcdef1"
+SAMPLE_VID = "test-verification-id-12345678-abcdef2026-3-5 12:30:28"
 
 # 混淆配置（默认全部关闭，仅查看原始文档内容）
 # 如需查看某个混淆效果，将 enabled 设为 True 并开启对应效果：
@@ -41,15 +41,14 @@ SAMPLE_VID = "test-verification-id-12345678-abcdef1"
 #   creases=True           折痕
 #   crop=True              边缘裁剪
 #   transform_3d=True      3D 透视变换
-#   photo_simulation=True  拍照模拟（光照 / 噪声 / 模糊 / JPEG 重编码）
 #   background_scene=True  背景场景叠加（桌面 / 地毯等）
+
 # OBFUSCATION_CONFIG = ObfuscationConfig(
 #     enabled=False,
 #     stains=False,
 #     creases=False,
 #     crop=False,
 #     transform_3d=False,
-#     photo_simulation=False,
 #     background_scene=False,
 # )
 
@@ -59,7 +58,6 @@ OBFUSCATION_CONFIG = ObfuscationConfig(
     creases=True,
     crop=True,
     transform_3d=True,
-    photo_simulation=True,
     background_scene=True,
 )
 

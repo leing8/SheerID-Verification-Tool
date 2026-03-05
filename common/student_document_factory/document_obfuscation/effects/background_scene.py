@@ -12,7 +12,7 @@ document_obfuscation.effects.background_scene — 背景场景叠加效果
 注意：
   3D 透视变换（yaw/pitch/roll 相机角度模拟）已独立移至 transform_3d.py，
   本模块仅负责背景生成与文档合成。流水线顺序：
-    stains → creases → crop → transform_3d → background_scene → photo_sim
+    stains → creases → transform_3d → background_scene → crop
 
 设计约束（基于 SheerID 官方文档）：
   - 文档四边均可见，不截断关键信息
@@ -45,7 +45,7 @@ def apply_background_scene(
     img: Image.Image,
     rng: random.Random,
     doc_type: str = "",
-) -> Image.Image:
+) -> tuple[Image.Image, tuple[int, int]]:
     """
     在文档外叠加背景场景，模拟桌面拍照效果。
 
@@ -58,12 +58,14 @@ def apply_background_scene(
         doc_type: 文档类型（当前未使用，预留扩展）。
 
     Returns:
-        包含背景的新 PIL 图像（RGB），尺寸约为原图的 1.12×～1.28×。
+        (background, (offset_x, offset_y)) 元组：
+        - background: 包含背景的新 PIL 图像（RGB），尺寸约为原图的 1.12×～1.28×。
+        - (offset_x, offset_y): 文档左上角在背景中的粘贴位置（像素坐标）。
     """
     try:
         import numpy as np
     except ImportError:
-        return img  # numpy 不可用时直接返回原图
+        return img, (0, 0)  # numpy 不可用时直接返回原图
 
     doc_w, doc_h = img.size
 
@@ -90,7 +92,7 @@ def apply_background_scene(
     # ── 5. 背景区域光照后处理（轻微渐变，不增加噪声）────────────────────────
     background = _post_process_background(background, rng, np)
 
-    return background
+    return background, (offset_x, offset_y)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -365,7 +367,6 @@ def _post_process_background(
     使背景与文档看起来处于同一拍照环境中。
 
     注意：仅做光照/色温渐变，不再叠加随机噪声（避免干扰文档可读性）。
-    主要的拍照模拟（噪声/模糊/JPEG）由 PhotoSimulation 统一负责。
     """
     arr = np.array(img, dtype=np.float32)
 

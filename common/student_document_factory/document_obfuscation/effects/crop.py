@@ -1,21 +1,20 @@
 """
 document_obfuscation.effects.crop — 边缘裁剪效果
 
-模拟用户拍照时手机未完全对准纸张，导致文档四边被轻微截断的效果。
-其中以一定概率选定一条"主裁剪边"，做更大幅度截断，模拟手机明显偏向一侧的场景。
+模拟拍照时手机取景框裁切掉部分边缘内容。
+在流水线中位于 background_scene 之后执行，裁切对象是含背景的合成图，
+能够裁切到背景和文档边缘，同时通过 safe_zones 保护核心数据。
 
 核心流程：
   1. 四边各自独立采样基础裁剪量（0 ~ normal_max）
   2. 以 70% 概率随机选一条边做"主裁剪"，叠加更大幅度裁剪（heavy_min ~ heavy_max）
-  3. SafeZone 碰撞检查：若某边裁剪会截入保护区则该边裁剪量置为 0
-  4. 执行裁剪（img.crop）
-  5. Resize 回原始尺寸（LANCZOS）——轻微拉伸模拟手机图像标准化
+  3. SafeZone 碰撞检查（可选）：若某边裁剪会截入保护区则该边裁剪量置为 0
+  4. 执行裁剪（img.crop），返回裁切后的自然尺寸
 
 设计约束（基于 SheerID 官方文档）：
   - 普通边：单边最多裁剪 5%
   - 主裁剪边：额外裁剪 8%~15%（合计最多约 20%）
-  - 不截断任何 SafeZone 核心数据区域（含 padding）
-  - 返回与输入相同尺寸的 RGB 图像
+  - 裁切背景边缘，让文档占据画面大部分面积
 """
 
 from __future__ import annotations
@@ -49,10 +48,8 @@ def apply_crop(
     """
     边缘裁剪效果主入口。
 
-    模拟拍照时手机未完全对准文档，四边各有轻微、独立的随机截断。
-    以一定概率随机选一条边做更大幅度裁剪（主裁剪边），
-    模拟手机明显偏向一侧截断文档边距的场景。
-    通过 SafeZone 机制保证核心数据字段不被裁剪。
+    在含背景的合成图上执行裁切，模拟拍照时取景框裁切掉部分背景边缘，
+    使文档在画面中占比更大，符合 SheerID 要求。
 
     Args:
         img:        输入 PIL 图像（RGB）。
@@ -62,7 +59,7 @@ def apply_crop(
                     不传或传空列表时无约束（仅受最大裁剪比例限制）。
 
     Returns:
-        与输入相同尺寸的 RGB 图像（裁剪 + resize 后）。
+        裁切后的 RGB 图像（自然尺寸，不做 resize）。
     """
     w, h = img.size
 
@@ -73,11 +70,8 @@ def apply_crop(
     if left == 0 and right == 0 and top == 0 and bottom == 0:
         return img
 
-    # 执行裁剪
-    cropped = img.crop((left, top, w - right, h - bottom))
-
-    # Resize 回原始尺寸（LANCZOS 高质量插值，轻微拉伸模拟手机标准化处理）
-    return cropped.resize((w, h), Image.LANCZOS)
+    # 执行裁剪，返回自然尺寸（不 resize 回原始尺寸）
+    return img.crop((left, top, w - right, h - bottom))
 
 
 # ══════════════════════════════════════════════════════════════════════════════
