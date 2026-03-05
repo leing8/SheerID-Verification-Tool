@@ -4,6 +4,7 @@ GeminiVerifier - 增强版 Gemini 学生验证器
 
 import re
 import sys
+import time
 from pathlib import Path
 from typing import Dict, Optional, Tuple
 
@@ -19,6 +20,24 @@ except ImportError:
 from config import PROGRAM_ID, SHEERID_API_URL
 from anti_detect.session import random_delay
 from student_document_factory import StudentInfoFactory
+
+# ── 官方定义的所有步骤 (https://developer.sheerid.com/concepts#steps) ──────────
+# collectStudentPersonalInfo : 填写个人信息（第一步）
+# docUpload                  : 上传证明文件（即时失败后触发）
+# sso                        : SSO 登录（部分 Program 启用，非所有流程有此步骤）
+# pending                    : 文档提交成功，等待人工/自动审核
+# success                    : 验证通过
+# error                      : 数据错误（可恢复，可重试当前步骤）
+# attemptsExhausted          : 文档连续拒绝 3 次，验证彻底失败（不可恢复）
+KNOWN_STEPS = frozenset({
+    "collectStudentPersonalInfo",
+    "docUpload",
+    "sso",
+    "pending",
+    "success",
+    "error",
+    "attemptsExhausted",
+})
 
 
 class GeminiVerifier:
@@ -95,7 +114,7 @@ class GeminiVerifier:
 
         官方文档要求同时发送 Content-Type 和 Content-Length，
         缺少 Content-Length 可能导致 S3 预签名 URL 返回 403。
-        参考: https://developer.sheerid.com/api-quickstart#document-upload
+        参考: https://developer.sheerid.com/rest-api#operation/submitDocumentReviewFilesWithoutToken
         """
         try:
             resp = self.client.put(
@@ -115,6 +134,98 @@ class GeminiVerifier:
             print(f"     ❗ S3 上传失败: {e}")
             return False
 
+    def _poll_result(
+        self,
+        status_url: Optional[str] = None,
+        max_wait_minutes: int = 60,
+        interval_seconds: int = 30,
+    ) -> Dict:
+        """轮询文档审查结果
+
+        官方文档说明:
+          - pending 状态期间，使用 GET /verification/{id} 查询 currentStep
+          - 响应中的 statusUrl 字段即为轮询 URL
+          - 直到 currentStep 不再是 pending 为止
+        参考: https://developer.sheerid.com/tutorials/apis/api-walkthrough#get-verification-details
+
+        Args:
+            status_url:          优先使用官方 statusUrl，否则自动构造
+            max_wait_minutes:    最长等待时间（默认 60 分钟）
+            interval_seconds:    每次轮询间隔秒数（默认 30 秒）
+
+        Returns:
+            与 verify() 格式一致的结果字典
+        """
+        # 优先使用官方返回的 statusUrl，否则构造标准 GET 端点
+        poll_endpoint = f"/verification/{self.vid}"
+
+        max_attempts = int((max_wait_minutes * 60) / interval_seconds)
+        print(f"\n   🔄 开始轮询文档审查结果 (最长 {max_wait_minutes} 分钟, 间隔 {interval_seconds} 秒)")
+        print(f"   📡 轮询端点: {SHEERID_API_URL}{poll_endpoint}")
+
+        for attempt in range(1, max_attempts + 1):
+            time.sleep(interval_seconds)
+
+            try:
+                data, status = self._request("GET", poll_endpoint)
+            except Exception as e:
+                print(f"   ⚠️  [{attempt}/{max_attempts}] 轮询请求失败: {e}, 继续等待...")
+                continue
+
+            current_step = data.get("currentStep", "pending")
+            print(f"   ⏳ [{attempt}/{max_attempts}] currentStep: {current_step}")
+
+            if current_step == "pending":
+                # 审核尚未完成，继续等待
+                continue
+
+            # ── 审核完成，返回最终结果 ──────────────────────────────────────
+            if current_step == "success":
+                return {
+                    "success": True,
+                    "message": "文档审查通过! 验证成功。",
+                    "redirectUrl": data.get("redirectUrl"),
+                    "rewardCode": data.get("rewardCode"),
+                }
+            elif current_step == "docUpload":
+                # 极少数情况: 审核后要求重新上传（首次拒绝，尚有剩余机会）
+                error_ids = data.get("errorIds", [])
+                return {
+                    "success": False,
+                    "needs_reupload": True,
+                    "error": f"文档被拒绝，请重新上传。错误: {error_ids}",
+                }
+            elif current_step == "attemptsExhausted":
+                # 官方定义: 3 次文档拒绝后触发，不可恢复
+                return {
+                    "success": False,
+                    "attempts_exhausted": True,
+                    "error": "文档连续被拒绝 3 次，验证彻底失败 (attemptsExhausted)。需重新开始新的验证。",
+                }
+            elif current_step == "error":
+                error_ids = data.get("errorIds", [])
+                system_msg = data.get("systemErrorMessage", "")
+                return {
+                    "success": False,
+                    "error": f"验证出错: {error_ids}",
+                    "system_message": system_msg,
+                }
+            else:
+                # 未知步骤，记录但也停止轮询
+                return {
+                    "success": False,
+                    "unknown": True,
+                    "message": f"轮询结束，未知状态: {current_step}",
+                }
+
+        # 超时退出
+        return {
+            "success": False,
+            "pending": True,
+            "timed_out": True,
+            "message": f"轮询已超时 ({max_wait_minutes} 分钟)，审核仍在进行中。请稍后手动查看邮件确认结果。",
+        }
+
     def check_link(self) -> Dict:
         """检查验证链接是否有效"""
         if not self.vid:
@@ -133,10 +244,25 @@ class GeminiVerifier:
             return {"valid": False, "error": "已验证通过"}
         elif step == "pending":
             return {"valid": False, "error": "已在审核中"}
+        elif step == "attemptsExhausted":
+            return {"valid": False, "error": "文档已被拒绝 3 次，验证彻底失败，需重新开始"}
+        elif step == "error":
+            error_ids = data.get("errorIds", [])
+            return {"valid": False, "error": f"验证出错: {error_ids}"}
         return {"valid": False, "error": f"无效步骤: {step}"}
 
     def verify(self) -> Dict:
-        """运行完整验证流程"""
+        """运行完整验证流程
+
+        官方文档定义的标准流程:
+          1. GET /verification/{id}           → 获取 currentStep
+          2. POST /step/collectStudentPersonalInfo → 提交个人信息
+             → 返回 currentStep: success (即时通过) 或 docUpload (需上传)
+          3. DELETE /step/sso                 → 可选，跳过 SSO
+          4. POST /step/docUpload             → 提交文件信息，S3 上传文件
+             → 直接返回 currentStep: pending 或 success
+             ⚠️  官方文档中 **不存在** completeDocUpload 步骤
+        """
         if not self.vid:
             return {"success": False, "error": "无效的验证 URL"}
 
@@ -166,7 +292,7 @@ class GeminiVerifier:
 
             # 步骤1: 生成文档（工厂按 vid 确定性选好文档类型和数量，2–3 份）
             documents = student_info.documents
-            print(f"\n   ▶ 步骤 1/5: 生成文档 ({len(documents)} 份)...")
+            print(f"\n   ▶ 步骤 1/4: 生成文档 ({len(documents)} 份)...")
             for doc_name, doc_bytes in documents:
                 print(f"     📄 {doc_name}: {len(doc_bytes) / 1024:.1f} KB")
 
@@ -175,7 +301,7 @@ class GeminiVerifier:
 
             # 步骤2: 提交信息 (已过此步骤则跳过)
             if current_step == "collectStudentPersonalInfo":
-                print("   ▶ 步骤 2/5: 提交学生信息...")
+                print("   ▶ 步骤 2/4: 提交学生信息...")
                 body = {
                     "firstName": first,
                     "lastName": last,
@@ -231,33 +357,58 @@ class GeminiVerifier:
                         "system_message": system_msg,
                     }
 
+                if data.get("currentStep") == "success":
+                    # 即时验证通过 (无需文档上传)
+                    return {
+                        "success": True,
+                        "message": "即时验证通过! 无需文档审核。",
+                        "student": f"{first} {last}",
+                        "email": email,
+                        "school": self.org["name"],
+                        "redirectUrl": data.get("redirectUrl"),
+                        "rewardCode": data.get("rewardCode"),
+                    }
+
                 # 使用提交后返回的最新步骤，决定是否需要跳过 SSO
                 current_step = data.get("currentStep", "")
                 print(f"     📍 当前步骤: {current_step}")
+
             elif current_step in ["docUpload", "sso"]:
-                print("   ▶ 步骤 2/5: 跳过 (已过信息提交)...")
+                print("   ▶ 步骤 2/4: 跳过 (已过信息提交)...")
+            elif current_step == "attemptsExhausted":
+                return {
+                    "success": False,
+                    "attempts_exhausted": True,
+                    "error": "文档连续被拒绝 3 次，验证彻底失败 (attemptsExhausted)。需重新开始新的验证。",
+                }
             else:
-                print(
-                    f"   ▶ 步骤 2/5: 未知步骤 '{current_step}'，尝试继续..."
-                )
+                # 记录未知步骤，但尝试继续（避免因步骤名变更而中断）
+                if current_step and current_step not in KNOWN_STEPS:
+                    print(f"   ⚠️  步骤 2/4: 未知步骤 '{current_step}'，尝试继续...")
+                else:
+                    print(f"   ▶ 步骤 2/4: 跳过 (当前步骤: {current_step})")
 
             # 步骤3: 跳过 SSO (仅当服务端明确返回 sso 步骤时才执行)
             if current_step == "sso":
-                print("   ▶ 步骤 3/5: 跳过 SSO...")
+                print("   ▶ 步骤 3/4: 跳过 SSO...")
                 random_delay(500, 1500)  # 短暂停顿，模拟点击"跳过"
                 sso_data, _ = self._request("DELETE", f"/verification/{self.vid}/step/sso")
                 current_step = sso_data.get("currentStep", current_step)
                 print(f"     📍 SSO 后步骤: {current_step}")
             else:
-                print("   ▶ 步骤 3/5: 无需跳过 SSO")
+                print("   ▶ 步骤 3/4: 无需跳过 SSO")
 
             # 模拟用户选择文件 (1.5-4 秒)
             random_delay(1500, 4000)
 
-            # 步骤4: 上传文档（官方 API 支持多文件，一次告知所有文件信息）
-            # 官方格式: POST body = [{"fileName":..,"mimeType":..,"fileSize":..}, ...]
-            # 官方响应: documents[] 按序返回各文件的 uploadUrl
-            print(f"   ▶ 步骤 4/5: 上传文档 ({len(documents)} 份)...")
+            # 步骤4: 上传文档
+            # 官方 API 流程:
+            #   POST /step/docUpload  → 获取每份文件的 S3 预签名 uploadUrl
+            #   PUT  <uploadUrl>      → 将文件内容上传到 S3
+            #   完成后服务端直接将 currentStep 设为 pending 或 success
+            #   ⚠️  官方文档中不存在 completeDocUpload 步骤
+            # 参考: https://developer.sheerid.com/tutorials/apis/api-walkthrough#doc-upload
+            print(f"   ▶ 步骤 4/4: 上传文档 ({len(documents)} 份)...")
             upload_body = {
                 "files": [
                     {
@@ -272,8 +423,11 @@ class GeminiVerifier:
                 "POST", f"/verification/{self.vid}/step/docUpload", upload_body
             )
 
+            if status != 200:
+                return {"success": False, "error": f"docUpload 请求失败: HTTP {status} - {data}"}
+
             if not data.get("documents"):
-                return {"success": False, "error": "没有上传 URL"}
+                return {"success": False, "error": "没有上传 URL (documents 字段为空)"}
 
             # 逐一上传每份文档到对应的 S3 预签名 URL
             # 官方文档: response.documents 顺序与 request.files 一致
@@ -289,31 +443,39 @@ class GeminiVerifier:
                 if i < len(documents) - 1:
                     random_delay(800, 2000)  # 模拟用户逐个选择文件的间隔
 
-            # 模拟用户确认并点击提交 (1-2 秒)
-            random_delay(1000, 2000)
-
-            # 步骤5: 完成上传
-            print("   ▶ 步骤 5/5: 完成上传...")
-            data, status = self._request(
-                "POST", f"/verification/{self.vid}/step/completeDocUpload"
-            )
+            # ── 解析 docUpload 结果 ────────────────────────────────────────────
+            # 官方文档: POST /step/docUpload 本身直接返回 pending 或 success
+            # statusUrl 字段: 用于后续轮询状态
             final_step = data.get("currentStep", "unknown")
+            status_url = data.get("statusUrl")
             print(f"     📍 最终步骤: {final_step}")
 
             if final_step == "success":
                 return {
                     "success": True,
-                    "message": "已立即验证! 无需审核。",
+                    "message": "即时验证通过! 无需审核。",
                     "student": f"{first} {last}",
                     "email": email,
                     "school": self.org["name"],
                     "redirectUrl": data.get("redirectUrl"),
+                    "rewardCode": data.get("rewardCode"),
                 }
             elif final_step == "pending":
                 return {
                     "success": False,
                     "pending": True,
-                    "message": "文档已提交审核，等待 24-48 小时结果。",
+                    "message": "文档已提交审核，等待结果。",
+                    "student": f"{first} {last}",
+                    "email": email,
+                    "school": self.org["name"],
+                    "status_url": status_url,
+                }
+            elif final_step == "attemptsExhausted":
+                # 官方定义: 3 次文档拒绝后触发，不可恢复
+                return {
+                    "success": False,
+                    "attempts_exhausted": True,
+                    "error": "文档连续被拒绝 3 次，验证彻底失败 (attemptsExhausted)。需重新开始新的验证。",
                     "student": f"{first} {last}",
                     "email": email,
                     "school": self.org["name"],
@@ -328,7 +490,7 @@ class GeminiVerifier:
                     from anti_detect import handle_fraud_rejection
                     handle_fraud_rejection(
                         error_payload=data,
-                        message=f"Stage: completeDocUpload | University: {self.org['name']}",
+                        message=f"Stage: docUpload | University: {self.org['name']}",
                     )
                 return {
                     "success": False,

@@ -10,6 +10,7 @@ Google 已将 Gemini 学生验证限制为仅限美国新注册用户
 - 加权大学选择 (美国院校优先)
 - 反速率限制
 - Chrome TLS 模拟反检测
+- 文档审查自动轮询
 
 依赖:
 - curl_cffi: pip install curl_cffi (TLS 伪装必需)
@@ -33,6 +34,18 @@ def main():
     )
     parser.add_argument(
         "--force", action="store_true", help="强制运行，跳过警告"
+    )
+    parser.add_argument(
+        "--poll",
+        action="store_true",
+        help="进入 pending 后自动轮询审查结果 (无需手动交互)",
+    )
+    parser.add_argument(
+        "--poll-timeout",
+        type=int,
+        default=60,
+        metavar="MINUTES",
+        help="--poll 的最长等待时间（分钟，默认 60）",
     )
     args = parser.parse_args()
 
@@ -99,34 +112,76 @@ def main():
 
     result = verifier.verify()
 
+    # ── 处理 pending：询问是否轮询 ─────────────────────────────────────────
+    if result.get("pending") and not result.get("timed_out"):
+        print()
+        print("─" * 58)
+        print("   ⏳ 文档已提交审核")
+        print(f"   👤 {result.get('student')}")
+        print(f"   📧 {result.get('email')}")
+        print(f"   🏫 {result.get('school')}")
+        print()
+
+        do_poll = args.poll
+        if not do_poll:
+            ans = input(
+                f"   是否启动自动轮询等待审查结果? (最长 {args.poll_timeout} 分钟) [y/N]: "
+            ).strip().lower()
+            do_poll = ans == "y"
+
+        if do_poll:
+            result = verifier._poll_result(
+                status_url=result.get("status_url"),
+                max_wait_minutes=args.poll_timeout,
+                interval_seconds=30,
+            )
+        else:
+            print()
+            print("   ⚠️  文档已上传，等待审核 (24-48小时)")
+            print("   ⚠️  审核结果将通过邮件通知")
+            print("   ⚠️  下次可使用 --poll 参数自动等待结果")
+            print("─" * 58)
+            return
+
+    # ── 打印最终结果 ──────────────────────────────────────────────────────
     print()
     print("─" * 58)
     if result.get("success"):
-        print("   🎉 立即验证成功!")
-        print(f"   👤 {result.get('student')}")
-        print(f"   📧 {result.get('email')}")
-        print(f"   🏫 {result.get('school')}")
+        print("   🎉 验证成功!")
+        if result.get("student"):
+            print(f"   👤 {result.get('student')}")
+        if result.get("email"):
+            print(f"   📧 {result.get('email')}")
+        if result.get("school"):
+            print(f"   🏫 {result.get('school')}")
+        if result.get("rewardCode"):
+            print(f"   🎁 奖励码: {result.get('rewardCode')}")
         print()
-        print("   ✅ 无需审核 - 已通过权威数据库验证!")
-    elif result.get("pending"):
-        print("   ⏳ 已提交审核")
-        print(f"   👤 {result.get('student')}")
-        print(f"   📧 {result.get('email')}")
-        print(f"   🏫 {result.get('school')}")
-        print()
-        print("   ⚠️  文档已上传，等待审核 (24-48小时)")
-        print("   ⚠️  这不保证一定成功!")
+        print(f"   ✅ {result.get('message', '验证已通过')}")
+    elif result.get("pending") and result.get("timed_out"):
+        print("   ⏰ 轮询超时")
+        print("   ⚠️  审核仍在进行中，请稍后查看邮件")
+    elif result.get("attempts_exhausted"):
+        print("   🚫 验证彻底失败")
+        print(f"   ❌ {result.get('error')}")
+    elif result.get("needs_reupload"):
+        print("   🔄 需要重新上传文档")
+        print(f"   ❌ {result.get('error')}")
     elif result.get("unknown"):
         print(f"   ❓ 未知状态: {result.get('message')}")
-        print(f"   👤 {result.get('student')}")
-        print(f"   📧 {result.get('email')}")
-        print(f"   🏫 {result.get('school')}")
+        if result.get("student"):
+            print(f"   👤 {result.get('student')}")
+        if result.get("email"):
+            print(f"   📧 {result.get('email')}")
+        if result.get("school"):
+            print(f"   🏫 {result.get('school')}")
         print()
         print("   ⚠️  请登录 SheerID 手动确认验证状态")
     else:
         print(f"   ❌ 失败: {result.get('error')}")
+        if result.get("system_message"):
+            print(f"   ℹ️  系统消息: {result.get('system_message')}")
     print("─" * 58)
-
 
 
 if __name__ == "__main__":
