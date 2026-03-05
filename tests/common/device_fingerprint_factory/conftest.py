@@ -1,7 +1,7 @@
 """共享 fixtures for device_fingerprint_factory 测试
 
 修改或使用默认SAMPLE_VID后运行以下命令进行测试
-pytest tests/common/device_fingerprint_factory/test_verifier_integration.py::TestVerifierFingerprintFlow::test_full_flow -v --log-cli-level=DEBUG
+  pytest tests/common/device_fingerprint_factory/test_verifier_integration.py::TestVerifierFingerprintFlow::test_full_flow -v --log-cli-level=DEBUG
 
 """
 

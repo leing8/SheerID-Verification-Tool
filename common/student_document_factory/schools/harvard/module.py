@@ -9,10 +9,14 @@
           module → documents（渲染层）
 """
 
+import logging
+
 from .documents import generate_invoice, generate_student_id_card, generate_transcript
 from .student_data import HarvardStudentData, build as _build_student
 from ...interfaces import DocumentResult, SchoolModule
 from ...universities import DocumentType
+
+logger = logging.getLogger(__name__)
 
 # 文档类型 → (生成函数, 输出文件名)
 _DOC_GENERATORS = {
@@ -32,10 +36,17 @@ class HarvardModule(SchoolModule):
         self, verification_id: str, program: str = ""
     ) -> HarvardStudentData:
         """基于 verificationId + program 确定性生成哈佛学生数据。"""
-        return _build_student(verification_id, program)
+        data = _build_student(verification_id, program)
+        logger.debug(
+            "哈佛学生数据生成: name=%s %s, id=%s, program=%s, school=%s",
+            data.first_name, data.last_name, data.student_id,
+            data.program, data.school_code,
+        )
+        return data
 
     def generate_document(
-        self, doc_type: str, student_data: HarvardStudentData
+        self, doc_type: str, student_data: HarvardStudentData,
+        *, fetch_avatar: bool = True,
     ) -> DocumentResult:
         """根据文档类型生成哈佛专属样式文档。"""
         entry = _DOC_GENERATORS.get(doc_type)
@@ -43,5 +54,12 @@ class HarvardModule(SchoolModule):
             raise ValueError(f"哈佛模块不支持文档类型: {doc_type!r}")
 
         generator, filename = entry
-        data = generator(student_data)
+        logger.debug("哈佛文档生成: type=%s, file=%s", doc_type, filename)
+
+        # 仅学生证需要 fetch_avatar 参数
+        if doc_type == DocumentType.STUDENT_ID:
+            data = generator(student_data, fetch_avatar=fetch_avatar)
+        else:
+            data = generator(student_data)
         return DocumentResult(filename=filename, data=data)
+

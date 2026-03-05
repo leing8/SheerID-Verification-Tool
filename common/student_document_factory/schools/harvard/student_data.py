@@ -11,11 +11,14 @@
 """
 
 import hashlib
+import logging
 import random
 import time
 from dataclasses import dataclass
 from datetime import datetime
 from typing import List, Tuple
+
+logger = logging.getLogger(__name__)
 
 
 # ============ 姓名数据（丰富池，提高多样性）============
@@ -289,6 +292,13 @@ def build(verification_id: str, program: str) -> HarvardStudentData:
         f"{street_num} {street}{apt}",
         f"{addr_info['city']}, {addr_info['state']} {addr_info['zip']}",
         "United States",
+    )
+
+    logger.debug(
+        "哈佛学生数据构建完成: name=%s %s, id=%s, email=%s, "
+        "program=%s, school=%s, gpa=%s, term=%s, courses=%d门",
+        first, last, student_id, email,
+        program, school_code, gpa, term, len(courses),
     )
 
     return HarvardStudentData(

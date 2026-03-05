@@ -15,6 +15,7 @@
 """
 
 import hashlib
+import logging
 import random
 from io import BytesIO
 from pathlib import Path
@@ -26,6 +27,8 @@ from ....document_obfuscation import DEFAULT_CONFIG, ObfuscationConfig, Obfuscat
 
 if TYPE_CHECKING:
     from ..student_data import HarvardStudentData
+
+logger = logging.getLogger(__name__)
 
 # ============ 路径常量 ============
 
@@ -144,7 +147,7 @@ def image_to_format(
     img: Image.Image,
     rng: random.Random,
     output_format: str = "png",
-    config: ObfuscationConfig = DEFAULT_CONFIG,
+    config: Optional[ObfuscationConfig] = None,
     doc_type: str = "",
 ) -> bytes:
     """
@@ -153,25 +156,29 @@ def image_to_format(
     内部通过 ObfuscationPipeline 应用所有混淆效果（污渍 / 折痕 / 裁剪 /
     3D变换 / 拍照模拟），对调用方完全透明。
 
-    污渍 Rejection Sampling 所需的核心数据保护区（SafeZone）由每份文档
-    模块的 get_safe_zones() 提供，此处统一解析后注入流水线。
-    新增文档类型只需在对应模块内实现 get_safe_zones(w, h) 即可，
-    此函数的 _SAFE_ZONE_RESOLVERS 注册表添加一行。
+    混淆总开关由 config.enabled 控制（默认 True），测试时可传入
+    ObfuscationConfig(enabled=False) 跳过全部混淆。
 
     Args:
         img:           原始 PIL 图像。
         rng:           确定性随机数生成器（由 student_id 派生）。
         output_format: 输出格式（"png" | "jpg" | "jpeg"），默认 "png"。
-        config:        混淆配置，默认全部效果启用。
-        doc_type:      文档类型字符串（影响部分效果，如 fading 仅限 student_id）。
+        config:        混淆配置，None 时使用 DEFAULT_CONFIG。
+        doc_type:      文档类型字符串。
 
     Returns:
         图像字节（PNG 或 JPEG）。
     """
+    # 延迟解析默认配置，确保测试 mock 生效
+    if config is None:
+        config = DEFAULT_CONFIG
+
     # ── 解析核心数据保护区 ──────────────────────────────────────────────────────
-    # 按 doc_type 调用对应文档模块的 get_safe_zones()，注入到流水线。
-    # 新增文档类型：在此字典中添加 "doc_type": import_module 映射即可。
     safe_zones = _resolve_safe_zones(doc_type, img.width, img.height)
+    logger.debug(
+        "混淆流水线: doc_type=%s, 原始尺寸=%dx%d, 保护区=%d个, enabled=%s",
+        doc_type, img.width, img.height, len(safe_zones), config.enabled,
+    )
 
     pipeline = ObfuscationPipeline(rng, config=config, doc_type=doc_type,
                                    safe_zones=safe_zones)
@@ -249,12 +256,14 @@ def fetch_random_avatar(seed: str, size: tuple = (139, 169)) -> Optional[Image.I
     """从 pravatar.cc 获取真人头像，失败返回带边框的占位灰色图"""
     cache_key = hashlib.md5(f"{seed}_{size}".encode()).hexdigest()
     if cache_key in _avatar_cache:
+        logger.debug("头像缓存命中: seed=%s", seed[:8])
         return _avatar_cache[cache_key].copy()
 
     avatar_img = None
     unique_id  = hashlib.md5(seed.encode()).hexdigest()[:16]
     request_size = max(size[0], size[1])
     url = f"https://i.pravatar.cc/{request_size}?u={unique_id}"
+    logger.debug("头像获取: url=%s", url)
 
     for attempt in range(2):
         try:
@@ -274,6 +283,7 @@ def fetch_random_avatar(seed: str, size: tuple = (139, 169)) -> Optional[Image.I
 
     if avatar_img is None:
         # 占位图：浅灰背景 + 深色边框
+        logger.debug("头像获取失败, 使用占位图: seed=%s", seed[:8])
         avatar_img = Image.new("RGB", size, (200, 200, 200))
         avatar_draw = ImageDraw.Draw(avatar_img)
         avatar_draw.rectangle(
@@ -281,6 +291,7 @@ def fetch_random_avatar(seed: str, size: tuple = (139, 169)) -> Optional[Image.I
             outline=(80, 80, 80), width=2,
         )
     else:
+        logger.debug("头像获取成功: seed=%s, 原始尺寸=%s", seed[:8], avatar_img.size)
         # 裁剪到证件照比例
         w, h = avatar_img.size
         target_ratio  = size[0] / size[1]

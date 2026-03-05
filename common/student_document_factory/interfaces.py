@@ -44,7 +44,9 @@ class SchoolModule(ABC):
         """
 
     @abstractmethod
-    def generate_document(self, doc_type: str, student_data: dict) -> DocumentResult:
+    def generate_document(
+        self, doc_type: str, student_data: dict, *, fetch_avatar: bool = True,
+    ) -> DocumentResult:
         """
         根据文档类型生成对应文档。
 
@@ -52,6 +54,7 @@ class SchoolModule(ABC):
             doc_type:     DocumentType 枚举的字符串值
                           ("transcript" | "invoice" | "student_id" | "schedule")
             student_data: generate_student_data() 的返回字典
+            fetch_avatar: 是否从网络获取头像（仅影响学生证）
 
         Returns:
             DocumentResult(filename, data)

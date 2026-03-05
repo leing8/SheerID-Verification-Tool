@@ -9,6 +9,7 @@
   5. 条形码扰乱
 """
 
+import logging
 from datetime import datetime
 from typing import TYPE_CHECKING
 
@@ -25,6 +26,8 @@ from .common import (
 
 if TYPE_CHECKING:
     from ..student_data import HarvardStudentData
+
+logger = logging.getLogger(__name__)
 
 # ============ 学生证模板坐标（基于 harvard-student-id.png）============
 
@@ -75,13 +78,24 @@ def get_safe_zones(img_w: int, img_h: int) -> list:
     ]
 
 
-def generate_student_id_card(student: "HarvardStudentData",
-                             output_format: str = "png") -> bytes:
+def generate_student_id_card(
+    student: "HarvardStudentData",
+    output_format: str = "png",
+    *,
+    fetch_avatar: bool = True,
+) -> bytes:
     """
     在 harvard-student-id.png 模板上填充学生数据 + 头像，返回图片字节。
+
+    Args:
+        student:       学生数据
+        output_format: 输出格式
+        fetch_avatar:  是否从网络获取真人头像（False 时使用灰色占位图）
     """
     if not STUDENT_ID_TEMPLATE.exists():
         raise FileNotFoundError(f"哈佛学生证模板不存在: {STUDENT_ID_TEMPLATE}")
+
+    logger.debug("学生证生成开始: student_id=%s, fetch_avatar=%s", student.student_id, fetch_avatar)
 
     rng = seeded_rng(student)
 
@@ -94,7 +108,17 @@ def generate_student_id_card(student: "HarvardStudentData",
     # 1. 头像
     photo = _COORDS["photo"]
     photo_size = (photo[2] - photo[0], photo[3] - photo[1])
-    avatar = fetch_random_avatar(student.student_id, size=photo_size)
+    if fetch_avatar:
+        avatar = fetch_random_avatar(student.student_id, size=photo_size)
+        logger.debug("[学生证 1/6] 头像: 网络获取, size=%s, 结果=%s", photo_size, "成功" if avatar else "占位图")
+    else:
+        avatar = Image.new("RGB", photo_size, (200, 200, 200))
+        avatar_draw = ImageDraw.Draw(avatar)
+        avatar_draw.rectangle(
+            [(0, 0), (photo_size[0] - 1, photo_size[1] - 1)],
+            outline=(80, 80, 80), width=2,
+        )
+        logger.debug("[学生证 1/6] 头像: 使用占位灰色图 (fetch_avatar=False)")
     if avatar:
         img.paste(avatar, (photo[0], photo[1]))
 
@@ -105,18 +129,24 @@ def generate_student_id_card(student: "HarvardStudentData",
     birth_dt = datetime.strptime(student.birth_date, "%Y-%m-%d")
     birthday_text = birth_dt.strftime("%m/%d/%y")
     draw_text(draw, _COORDS["birthday"], birthday_text, font, color=text_color, spacing=0)
+    logger.debug("[学生证 2/6] 生日: %s", birthday_text)
 
     # 2. 姓名（大写，逐字符绘制）
-    draw_text(draw, _COORDS["name"], f"{student.first_name} {student.last_name}".upper(), font, color=text_color, spacing=0)
+    name_text = f"{student.first_name} {student.last_name}".upper()
+    draw_text(draw, _COORDS["name"], name_text, font, color=text_color, spacing=0)
+    logger.debug("[学生证 3/6] 姓名: %s", name_text)
 
     # 3. 学号 + SP
     draw_text(draw, _COORDS["id_number"], f"{student.student_id} 0", font, color=text_color, spacing=0)
     draw_text(draw, _COORDS["sp_label"], "SP", font, color=text_color, spacing=0)
+    logger.debug("[学生证 4/6] 学号: %s", student.student_id)
 
     # 4. VALID THRU
     now = datetime.now()
     valid_year = now.year if now.month <= 5 else now.year + 1
-    draw_text(draw, _COORDS["valid_thru"], f"05/31/{valid_year}", font, color=text_color, spacing=0)
+    valid_text = f"05/31/{valid_year}"
+    draw_text(draw, _COORDS["valid_thru"], valid_text, font, color=text_color, spacing=0)
+    logger.debug("[学生证 5/6] 有效期: %s", valid_text)
 
     # 5. 条形码扰乱：在原有条形码上叠加随机黑线
     bx1, by1, bx2, by2 = _COORDS["barcode"]
@@ -126,5 +156,7 @@ def generate_student_id_card(student: "HarvardStudentData",
 
     # 6. 学院缩写（右下角动态渲染）
     draw_text(draw, _COORDS["school_code"], student.school_code, font, color=text_color, spacing=0)
+    logger.debug("[学生证 6/6] 学院: %s, 条码扰乱完成", student.school_code)
 
     return image_to_format(img, rng, output_format, doc_type="student_id")
+

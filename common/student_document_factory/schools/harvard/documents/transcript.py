@@ -15,6 +15,7 @@
   7. 底部声明拼接
 """
 
+import logging
 import time
 from datetime import datetime
 from typing import TYPE_CHECKING
@@ -32,6 +33,8 @@ from .common import (
 
 if TYPE_CHECKING:
     from ..student_data import HarvardStudentData
+
+logger = logging.getLogger(__name__)
 
 # ============ 成绩单模板坐标（基于 harvard-transcript1.png）============
 
@@ -105,6 +108,8 @@ def generate_transcript(student: "HarvardStudentData",
     if not TRANSCRIPT_TEMPLATE_1.exists():
         raise FileNotFoundError(f"哈佛成绩单主模板不存在: {TRANSCRIPT_TEMPLATE_1}")
 
+    logger.debug("成绩单生成开始: student_id=%s", student.student_id)
+
     rng = seeded_rng(student)
     fonts = load_monospace_fonts()
 
@@ -117,20 +122,26 @@ def generate_transcript(student: "HarvardStudentData",
     for line in addr:
         draw_text(draw, (_COORDS["issued_to_lines"][0], y), line, fonts["sm_bold"])
         y += 15
+    logger.debug("[成绩单 1/7] 地址: %s", addr[0])
 
     # 2. Name
-    draw_text(draw, _COORDS["name"], f"{student.first_name} {student.last_name}", fonts["sm_bold"])
+    name_text = f"{student.first_name} {student.last_name}"
+    draw_text(draw, _COORDS["name"], name_text, fonts["sm_bold"])
+    logger.debug("[成绩单 2/7] 姓名: %s", name_text)
 
     # 3. ID
     draw_text(draw, _COORDS["student_id"], student.student_id, fonts["sm_bold"])
+    logger.debug("[成绩单 3/7] 学号: %s", student.student_id)
 
     # 4. Printed
     printed_date = time.strftime("%B %d, %Y")
     draw_text(draw, _COORDS["printed"], printed_date, fonts["sm_bold"])
+    logger.debug("[成绩单 4/7] 打印日期: %s", printed_date)
 
     # 5. 学期标签
     semester = _get_semester(rng)
     draw_text(draw, _COORDS["semester_label"], semester, fonts["sm_bold"])
+    logger.debug("[成绩单 5/7] 学期: %s", semester)
 
     # 6. 课程列表
     y = _COORDS["courses_start_y"]
@@ -144,10 +155,12 @@ def generate_transcript(student: "HarvardStudentData",
         draw_text(draw, (cols["level"],   y), level,       fonts["sm_bold"])
         draw_text(draw, (cols["grade"],   y), grade,       fonts["sm_bold"])
         y += _COURSE_LINE_HEIGHT
+    logger.debug("[成绩单 6/7] 课程: %d门", len(student.courses))
 
     # 7. 拼接底部声明（transcript2）
     last_course_y = y
     img = _splice_footer(img, last_course_y, rng)
+    logger.debug("[成绩单 7/7] 底部声明拼接完成")
 
     return image_to_format(img, rng, output_format, doc_type="transcript")
 

@@ -1,7 +1,7 @@
 """共享 fixtures for proxy_checker 测试
 
 运行以下命令进行测试
-pytest tests/common/proxy_checker/test_verifier_integration.py::TestVerifierProxyFlow::test_full_flow_residential_us -v --log-cli-level=DEBUG
+  pytest tests/common/proxy_checker/test_verifier_integration.py::TestVerifierProxyFlow::test_full_flow_residential_us -v --log-cli-level=DEBUG
 
 """
 

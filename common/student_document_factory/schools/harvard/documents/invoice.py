@@ -22,6 +22,7 @@
   ⑧ Total Amount Due（底部声明区域）— 叠加 receipt2 后在其上填写总金额
 """
 
+import logging
 import time
 from typing import TYPE_CHECKING
 
@@ -38,6 +39,8 @@ from .common import (
 
 if TYPE_CHECKING:
     from ..student_data import HarvardStudentData
+
+logger = logging.getLogger(__name__)
 
 # ============ 发票模板坐标（基于 harvard-tuition-receipt1.png, 1395×1401）============
 
@@ -129,6 +132,8 @@ def generate_invoice(student: "HarvardStudentData",
     if not INVOICE_TEMPLATE_1.exists():
         raise FileNotFoundError(f"哈佛学费发票模板不存在: {INVOICE_TEMPLATE_1}")
 
+    logger.debug("发票生成开始: student_id=%s", student.student_id)
+
     rng = seeded_rng(student)
     fonts = load_helvetica_fonts()
 
@@ -145,19 +150,25 @@ def generate_invoice(student: "HarvardStudentData",
     draw_text(draw, _COORDS["to_addr1"],   addr[1], fonts["md"], spacing=_INVOICE_CHAR_SPACING)
     draw_text(draw, _COORDS["to_addr2"],   addr[2], fonts["md"], spacing=_INVOICE_CHAR_SPACING)
     draw_text(draw, _COORDS["to_country"], addr[3], fonts["md"], spacing=_INVOICE_CHAR_SPACING)
+    logger.debug("[发票 1/8] 收件地址: %s", addr[0])
 
     # ② Invoice Number（Helvetica Medium 26px）
     draw_text(draw, _COORDS["invoice_number"], student.invoice_number, fonts["md"], spacing=_INVOICE_CHAR_SPACING)
+    logger.debug("[发票 2/8] 发票号: %s", student.invoice_number)
 
     # ③ Invoice Date（Helvetica Medium 26px）
-    draw_text(draw, _COORDS["invoice_date"], time.strftime("%m/%d/%Y"), fonts["md"], spacing=_INVOICE_CHAR_SPACING)
+    invoice_date = time.strftime("%m/%d/%Y")
+    draw_text(draw, _COORDS["invoice_date"], invoice_date, fonts["md"], spacing=_INVOICE_CHAR_SPACING)
+    logger.debug("[发票 3/8] 发票日期: %s", invoice_date)
 
     # ④ Total Amount Due 头部大字金额（Helvetica Bold 38px）
     draw_text(draw, _COORDS["total_header"], total_str, fonts["xl_bold"], spacing=_INVOICE_CHAR_SPACING)
+    logger.debug("[发票 4/8] 头部总额: %s", total_str)
 
     # ⑤ Transactions for [姓名]:（Helvetica Medium 26px）
     draw_text(draw, _COORDS["transactions_label"],
               f"Transactions for {full_name}:", fonts["md"], spacing=_INVOICE_CHAR_SPACING)
+    logger.debug("[发票 5/8] 交易标题: %s", full_name)
 
     # ⑥ 费用明细行（Helvetica Medium 26px）
     date_str = time.strftime("%Y-%m-%d")
@@ -177,14 +188,17 @@ def generate_invoice(student: "HarvardStudentData",
         draw_text(draw, (cols["term"],        y), term,           fonts["md"], spacing=_INVOICE_CHAR_SPACING)
         draw_text(draw, (cols["amount"],      y), f"${amt:,}.00", fonts["md"], spacing=_INVOICE_CHAR_SPACING)
         y += _ITEM_LINE_HEIGHT
+    logger.debug("[发票 6/8] 费用明细: %d行", len(line_items))
 
     # ⑦ Total Due for [姓名]:（标签 Medium 26px + 金额 Bold 28px）
     draw_text(draw, (cols["description"] + 510, y), f"Total Due for {full_name}:", fonts["md"], spacing=_INVOICE_CHAR_SPACING)
     draw_text(draw, (cols["amount"], y), total_str, fonts["lg_bold"], spacing=_INVOICE_CHAR_SPACING)
+    logger.debug("[发票 7/8] 合计行: %s", total_str)
 
     # ⑧ 叠加底部声明（receipt2 透明背景）并填写底部 Total Amount Due 金额
     last_item_y = y + _ITEM_LINE_HEIGHT
     _overlay_footer(img, last_item_y, total_str, fonts)
+    logger.debug("[发票 8/8] 底部声明叠加完成")
 
     return image_to_format(img, rng, output_format, doc_type="invoice")
 
