@@ -137,7 +137,7 @@ def generate_invoice(student: "HarvardStudentData",
     rng = seeded_rng(student)
     fonts = load_helvetica_fonts()
 
-    img = Image.open(INVOICE_TEMPLATE_1).convert("RGB")
+    img = Image.open(INVOICE_TEMPLATE_1).convert("RGBA")
     draw = ImageDraw.Draw(img)
 
     full_name = f"{student.last_name}, {student.first_name}"

@@ -113,7 +113,7 @@ def generate_transcript(student: "HarvardStudentData",
     rng = seeded_rng(student)
     fonts = load_monospace_fonts()
 
-    img = Image.open(TRANSCRIPT_TEMPLATE_1).convert("RGB")
+    img = Image.open(TRANSCRIPT_TEMPLATE_1).convert("RGBA")
     draw = ImageDraw.Draw(img)
 
     # 1. ISSUED TO 地址

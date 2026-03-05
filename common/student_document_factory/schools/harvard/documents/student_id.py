@@ -99,7 +99,7 @@ def generate_student_id_card(
 
     rng = seeded_rng(student)
 
-    img = Image.open(STUDENT_ID_TEMPLATE).convert("RGB")
+    img = Image.open(STUDENT_ID_TEMPLATE).convert("RGBA")
     draw = ImageDraw.Draw(img)
 
     font = load_serif_font(28)

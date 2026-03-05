@@ -20,7 +20,7 @@ from typing import List, Optional, Tuple
 
 from PIL import Image
 
-from .utils import make_rs as _make_rs, to_float32 as _to_float32, to_uint8 as _to_uint8
+from .utils import make_rs as _make_rs, preserve_alpha, to_float32 as _to_float32, to_uint8 as _to_uint8
 from ..safe_zone import SafeZone
 
 # ── 类型别名 ────────────────────────────────────────────────────────────────────
@@ -34,6 +34,7 @@ _MAX_SAMPLE_TRIES = 50
 # 公开入口
 # ═══════════════════════════════════════════════════════════════════════════════
 
+@preserve_alpha
 def apply_stains(
     img: Image.Image,
     rng: random.Random,

@@ -84,9 +84,10 @@ class ObfuscationPipeline:
         if not self._config.enabled:
             return img
 
-        # 确保输入为 RGB（兼容调用方传入非 RGB 图像的情况）
-        if img.mode != "RGB":
-            img = img.convert("RGB")
+        # 各效果已独立处理 RGBA（保存/恢复 alpha），pipeline 不再拆合 alpha。
+        # 仅对非 RGB/RGBA 模式做转换。
+        if img.mode not in ("RGB", "RGBA"):
+            img = img.convert("RGBA")
 
         cfg = self._config
         rng = self._rng
@@ -139,10 +140,6 @@ class ObfuscationPipeline:
                 self._safe_zones, doc_offset[0], doc_offset[1],
             )
             img = apply_crop(img, rng, doc_type, safe_zones=translated_zones)
-
-        # 确保最终输出为 RGB（兼容所有下游调用方）
-        if img.mode != "RGB":
-            img = img.convert("RGB")
 
         return img
 

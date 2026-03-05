@@ -27,7 +27,7 @@ from typing import List, Optional, Tuple
 
 from PIL import Image
 
-from .utils import to_uint8 as _to_uint8
+from .utils import to_uint8 as _to_uint8, preserve_alpha
 from ..safe_zone import SafeZone
 
 # Rejection Sampling 最大重试次数（每条折痕独立计算）
@@ -38,6 +38,7 @@ _MAX_SAMPLE_TRIES = 100
 # 公开入口
 # ═══════════════════════════════════════════════════════════════════════════════
 
+@preserve_alpha
 def apply_creases(
     img: Image.Image,
     rng: random.Random,
