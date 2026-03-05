@@ -7,7 +7,7 @@ import sys
 from pathlib import Path
 from typing import Dict, Optional, Tuple
 
-# 添加 common 公共模块路径 (device_fingerprint_factory, proxy_checker)
+# 添加 common 公共模块路径 (device_fingerprint_factory, proxy_checker, student_document_factory)
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "common"))
 try:
     from device_fingerprint_factory import DeviceIdentityFactory
@@ -18,9 +18,6 @@ except ImportError:
 
 from config import PROGRAM_ID, SHEERID_API_URL
 from anti_detect.session import random_delay
-
-# common/student_document_factory: 确定性学生信息 + 文档生成
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "common"))
 from student_document_factory import StudentInfoFactory
 
 
@@ -93,11 +90,22 @@ class GeminiVerifier:
         except Exception as e:
             raise Exception(f"请求失败: {e}")
 
-    def _upload_s3(self, url: str, data: bytes) -> bool:
-        """S3 文档上传 (curl_cffi)"""
+    def _upload_s3(self, url: str, data: bytes, mime_type: str = "image/png") -> bool:
+        """S3 文档上传 (curl_cffi)
+
+        官方文档要求同时发送 Content-Type 和 Content-Length，
+        缺少 Content-Length 可能导致 S3 预签名 URL 返回 403。
+        参考: https://developer.sheerid.com/api-quickstart#document-upload
+        """
         try:
             resp = self.client.put(
-                url, data=data, headers={"Content-Type": "image/png"}, timeout=60
+                url,
+                data=data,
+                headers={
+                    "Content-Type": mime_type,
+                    "Content-Length": str(len(data)),
+                },
+                timeout=60,
             )
             if 200 <= resp.status_code < 300:
                 return True
@@ -156,19 +164,18 @@ class GeminiVerifier:
             print(f"   🔑 ID: {self.vid[:20]}...")
             print(f"   📍 当前步骤: {current_step}")
 
-            # 步骤1: 生成文档（工厂已按 vid 确定性选好文档类型和数量）
-            print(f"\n   ▶ 步骤 1/3: 生成文档 ({len(student_info.documents)} 份)...")
-            for doc_name, doc_bytes in student_info.documents:
+            # 步骤1: 生成文档（工厂按 vid 确定性选好文档类型和数量，2–3 份）
+            documents = student_info.documents
+            print(f"\n   ▶ 步骤 1/5: 生成文档 ({len(documents)} 份)...")
+            for doc_name, doc_bytes in documents:
                 print(f"     📄 {doc_name}: {len(doc_bytes) / 1024:.1f} KB")
-            # 取第一份文档用于上传
-            filename, doc = student_info.documents[0]
 
             # 模拟用户填写表单 (人类在这里会花 2-5 秒)
             random_delay(2000, 5000)
 
             # 步骤2: 提交信息 (已过此步骤则跳过)
             if current_step == "collectStudentPersonalInfo":
-                print("   ▶ 步骤 2/3: 提交学生信息...")
+                print("   ▶ 步骤 2/5: 提交学生信息...")
                 body = {
                     "firstName": first,
                     "lastName": last,
@@ -224,33 +231,41 @@ class GeminiVerifier:
                         "system_message": system_msg,
                     }
 
-                print(f"     📍 当前步骤: {data.get('currentStep')}")
+                # 使用提交后返回的最新步骤，决定是否需要跳过 SSO
                 current_step = data.get("currentStep", "")
+                print(f"     📍 当前步骤: {current_step}")
             elif current_step in ["docUpload", "sso"]:
-                print("   ▶ 步骤 2/3: 跳过 (已过信息提交)...")
+                print("   ▶ 步骤 2/5: 跳过 (已过信息提交)...")
             else:
                 print(
-                    f"   ▶ 步骤 2/3: 未知步骤 '{current_step}'，尝试继续..."
+                    f"   ▶ 步骤 2/5: 未知步骤 '{current_step}'，尝试继续..."
                 )
 
-            # 步骤3: 跳过 SSO (如需要)
-            if current_step in ["sso", "collectStudentPersonalInfo"]:
-                print("   ▶ 步骤 3/4: 跳过 SSO...")
-                random_delay(500, 1500)  # 短暂停顿，模拟点击“跳过”
-                self._request("DELETE", f"/verification/{self.vid}/step/sso")
+            # 步骤3: 跳过 SSO (仅当服务端明确返回 sso 步骤时才执行)
+            if current_step == "sso":
+                print("   ▶ 步骤 3/5: 跳过 SSO...")
+                random_delay(500, 1500)  # 短暂停顿，模拟点击"跳过"
+                sso_data, _ = self._request("DELETE", f"/verification/{self.vid}/step/sso")
+                current_step = sso_data.get("currentStep", current_step)
+                print(f"     📍 SSO 后步骤: {current_step}")
+            else:
+                print("   ▶ 步骤 3/5: 无需跳过 SSO")
 
             # 模拟用户选择文件 (1.5-4 秒)
             random_delay(1500, 4000)
 
-            # 步骤4: 上传文档
-            print("   ▶ 步骤 4/5: 上传文档...")
+            # 步骤4: 上传文档（官方 API 支持多文件，一次告知所有文件信息）
+            # 官方格式: POST body = [{"fileName":..,"mimeType":..,"fileSize":..}, ...]
+            # 官方响应: documents[] 按序返回各文件的 uploadUrl
+            print(f"   ▶ 步骤 4/5: 上传文档 ({len(documents)} 份)...")
             upload_body = {
                 "files": [
                     {
-                        "fileName": filename,
+                        "fileName": doc_name,
                         "mimeType": "image/png",
-                        "fileSize": len(doc),
+                        "fileSize": len(doc_bytes),
                     }
+                    for doc_name, doc_bytes in documents
                 ]
             }
             data, status = self._request(
@@ -260,11 +275,19 @@ class GeminiVerifier:
             if not data.get("documents"):
                 return {"success": False, "error": "没有上传 URL"}
 
-            upload_url = data["documents"][0].get("uploadUrl")
-            if not self._upload_s3(upload_url, doc):
-                return {"success": False, "error": "上传失败"}
-
-            print("     ✅ 文档已上传!")
+            # 逐一上传每份文档到对应的 S3 预签名 URL
+            # 官方文档: response.documents 顺序与 request.files 一致
+            upload_slots = data["documents"]
+            for i, ((doc_name, doc_bytes), slot) in enumerate(zip(documents, upload_slots)):
+                upload_url = slot.get("uploadUrl")
+                if not upload_url:
+                    return {"success": False, "error": f"文档 {i + 1} ({doc_name}) 缺少上传 URL"}
+                print(f"     📤 上传文档 {i + 1}/{len(documents)}: {doc_name}")
+                if not self._upload_s3(upload_url, doc_bytes):
+                    return {"success": False, "error": f"文档 {i + 1} ({doc_name}) 上传失败"}
+                print(f"     ✅ 文档 {i + 1} 已上传!")
+                if i < len(documents) - 1:
+                    random_delay(800, 2000)  # 模拟用户逐个选择文件的间隔
 
             # 模拟用户确认并点击提交 (1-2 秒)
             random_delay(1000, 2000)
@@ -315,7 +338,7 @@ class GeminiVerifier:
             else:
                 return {
                     "success": False,
-                    "pending": True,
+                    "unknown": True,
                     "message": f"未知状态: {final_step}，请手动检查。",
                     "student": f"{first} {last}",
                     "email": email,

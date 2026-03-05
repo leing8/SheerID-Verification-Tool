@@ -70,12 +70,18 @@ def main():
     else:
         url = input("\n   请输入验证 URL: ").strip()
 
-    if not url or "sheerid.com" not in url:
-        print("\n   ❌ 无效 URL，必须包含 sheerid.com")
+    if not url or "sheerid.com" not in url or "verificationId=" not in url:
+        print("\n   ❌ 无效 URL，必须包含 sheerid.com 且带有 verificationId= 参数")
+        print("   示例: https://services.sheerid.com/verify/...?verificationId=abcdef...")
         return
 
     # 显示代理信息
     if args.proxy:
+        proxy_display = args.proxy
+        if not proxy_display.startswith("http"):
+            print("   ⚠️  代理缺少 scheme，尝试自动补全 http://")
+            proxy_display = "http://" + proxy_display
+            args.proxy = proxy_display
         print(f"   🔒 使用代理: {args.proxy}")
     else:
         print("   ⚠️  未指定代理! 使用直连")
@@ -110,6 +116,13 @@ def main():
         print()
         print("   ⚠️  文档已上传，等待审核 (24-48小时)")
         print("   ⚠️  这不保证一定成功!")
+    elif result.get("unknown"):
+        print(f"   ❓ 未知状态: {result.get('message')}")
+        print(f"   👤 {result.get('student')}")
+        print(f"   📧 {result.get('email')}")
+        print(f"   🏫 {result.get('school')}")
+        print()
+        print("   ⚠️  请登录 SheerID 手动确认验证状态")
     else:
         print(f"   ❌ 失败: {result.get('error')}")
     print("─" * 58)
