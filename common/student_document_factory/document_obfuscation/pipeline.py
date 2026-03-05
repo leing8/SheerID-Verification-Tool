@@ -112,11 +112,8 @@ class ObfuscationPipeline:
         # 保证后续步骤始终接收 RGB，各步骤无需感知上游格式。
         if cfg.transform_3d:
             img = apply_transform_3d(img, rng, doc_type)
-            # 格式归一化：background_scene 禁用时，将 RGBA → RGB（白底合成）
-            if not cfg.background_scene and img.mode == "RGBA":
-                rgb = Image.new("RGB", img.size, (255, 255, 255))
-                rgb.paste(img.convert("RGB"), mask=img.split()[3])
-                img = rgb
+            # transform_3d 输出 RGBA（透明区域 = 文档轮廓外），
+            # 直接保留透明通道，不填白底。
 
         # ── Step 4: 背景场景叠加 ─────────────────────────────────────────────
         # 输入 RGB 或 RGBA → 输出 (RGB, (offset_x, offset_y))

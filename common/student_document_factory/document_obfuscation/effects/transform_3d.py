@@ -110,9 +110,9 @@ def _perspective_warp(
     yaw_rad   = math.radians(abs(yaw_deg))
     pitch_rad = math.radians(abs(pitch_deg))
 
-    # 水平方向的边缘压缩（yaw → 左右两列的 x 收缩量）
+    # 水平方向的边缘压缩（yaw → 左右两列的 y 收缩量）
     yaw_shift = int(math.tan(yaw_rad) * h * 0.5)
-    # 垂直方向的边缘压缩（pitch → 上下两行的 y 收缩量）
+    # 垂直方向的边缘压缩（pitch → 上下两行的 x 收缩量）
     pitch_shift = int(math.tan(pitch_rad) * w * 0.5)
 
     # ── 构造源矩形四角（顺时针：左上、右上、右下、左下）──────────────────────
@@ -162,12 +162,12 @@ def _perspective_warp(
         dst[1][0] += pitch_shift // 2  # TR.x 轻微内缩
 
     # ── 确保目标四角在合理范围内 ─────────────────────────────────────────────
-    # 给变换后图像加 padding 避免越界
-    pad = max(yaw_shift, pitch_shift) + 20
+    # 给变换后图像加 padding 避免越界（容器足够大，确保强透视下不裁剪内容）
+    pad = yaw_shift + pitch_shift + 50
     out_w = w + pad * 2
     out_h = h + pad * 2
     dst_padded = dst + np.float32([pad, pad])
-    src_padded = src  # src 不变
+    src_padded = src + np.float32([pad, pad])  # 与画布粘贴位置 (pad, pad) 对齐
 
     # ── 计算 PIL PERSPECTIVE 变换系数（8 参数单应矩阵）────────────────────────
     coeffs = _compute_perspective_coeffs(src_padded, dst_padded, w, h, pad)
