@@ -5,9 +5,12 @@
 自动根据当前日期判断是否在夏令时期间。
 """
 
+import logging
 from datetime import datetime, timezone
 
 from .signals import _deterministic_seed, _seed_to_int
+
+logger = logging.getLogger(__name__)
 
 # 美国时区定义
 # offset_std: 标准时间偏移, offset_dst: 夏令时偏移
@@ -73,6 +76,7 @@ def _is_us_dst(dt: datetime = None) -> bool:
     """
     if dt is None:
         dt = datetime.now(timezone.utc)
+    logger.debug("DST 判定: 日期=%s", dt.strftime("%Y-%m-%d"))
 
     year = dt.year
     month = dt.month
@@ -131,9 +135,15 @@ def select_timezone(verification_id: str) -> dict:
     seed = _deterministic_seed(verification_id, "timezone_select")
     idx = _seed_to_int(seed, len(US_MAINLAND_TIMEZONES))
     tz = US_MAINLAND_TIMEZONES[idx]
-    return {
+    is_dst = _is_us_dst()
+    result = {
         "name": tz["name"],
         "offset": _get_tz_offset(tz),
         "abbr": _get_tz_abbr(tz),
         "label": tz["label"],
     }
+    logger.debug(
+        "时区选择: idx=%d/%d -> %s (UTC%+d, DST=%s)",
+        idx, len(US_MAINLAND_TIMEZONES), tz["name"], result["offset"], is_dst,
+    )
+    return result

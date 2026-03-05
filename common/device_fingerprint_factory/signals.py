@@ -12,6 +12,7 @@ SheerID 指纹算法 (逆向自 fd.sheerid.com/learn.js):
 
 import hashlib
 import hmac
+import logging
 import struct
 
 try:
@@ -21,6 +22,8 @@ except ImportError:
         "mmh3 是必需依赖，用于生成与 SheerID 一致的 MurmurHash3 指纹哈希。\n"
         "安装: pip install mmh3"
     )
+
+logger = logging.getLogger(__name__)
 
 # 用于 HMAC 的固定密钥 (可配置)
 _HMAC_KEY = b"device-fingerprint-salt-v1"
@@ -103,7 +106,9 @@ def select_chrome_version(verification_id: str) -> str:
     """
     seed = _deterministic_seed(verification_id, "chrome_version")
     idx = _seed_to_int(seed, len(CHROME_IMPERSONATE_KEYS))
-    return CHROME_IMPERSONATE_KEYS[idx]
+    selected = CHROME_IMPERSONATE_KEYS[idx]
+    logger.debug("Chrome 版本选择: idx=%d/%d -> %s", idx, len(CHROME_IMPERSONATE_KEYS), selected)
+    return selected
 
 
 def get_chrome_full_version(impersonate_key: str) -> str:
@@ -167,6 +172,9 @@ def compute_fingerprint_hash(components: list) -> str:
     输出: 32 位十六进制字符串
     """
     raw = "~~~".join(str(c) for c in components)
+    logger.debug("指纹哈希计算: 组件数=%d, 拼接长度=%d", len(components), len(raw))
     # MurmurHash3 x64_128, seed=31, 与 SheerID learn.js 一致
     hash_val = mmh3.hash128(raw, seed=31, x64arch=True, signed=False)
-    return f"{hash_val:032x}"
+    result = f"{hash_val:032x}"
+    logger.debug("指纹哈希结果: %s", result)
+    return result

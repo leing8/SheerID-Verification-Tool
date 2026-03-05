@@ -6,6 +6,7 @@ DeviceIdentityFactory — 确定性设备身份工厂 (仅桌面端)
 不同 verificationId 即使选中同一设备 → 混淆产生差异。
 """
 
+import logging
 from typing import Optional
 
 from .catalog import (
@@ -28,6 +29,8 @@ from .signals import (
     select_chrome_version,
 )
 from .us_timezones import select_timezone
+
+logger = logging.getLogger(__name__)
 
 
 class DeviceIdentityFactory:
@@ -59,18 +62,37 @@ class DeviceIdentityFactory:
         if not verification_id:
             raise ValueError("verification_id 不能为空")
 
+        vid_short = verification_id[:16]
+        logger.info(
+            "开始生成设备身份: vid=%s..., brand=%s",
+            vid_short, brand or "(任意)",
+        )
+
         # 1. 确定性选择桌面设备
         device = self._select_device(verification_id, brand)
+        logger.info(
+            "[步骤1/8] 设备选择: %s %s [%s] (%s)",
+            device.brand, device.model, device.config_label, device.os_family,
+        )
 
         # 2. 确定性选择时区 (自动处理 DST)
         timezone = select_timezone(verification_id)
+        logger.debug(
+            "[步骤2/8] 时区选择: %s (UTC%+d, %s)",
+            timezone["name"], timezone["offset"], timezone.get("abbr", ""),
+        )
 
         # 3. 确定性选择 Chrome 版本 (返回 curl_cffi impersonate 键)
         impersonate_key = select_chrome_version(verification_id)
         chrome_ver = get_chrome_full_version(impersonate_key)
+        logger.debug(
+            "[步骤3/8] Chrome 版本: %s (impersonate=%s)",
+            chrome_ver, impersonate_key,
+        )
 
         # 4. 生成设备唯一键 (用于信号混淆)
         device_key = f"{device.brand}:{device.model}:{device.config_label}"
+        logger.debug("[步骤4/8] 设备唯一键: %s", device_key)
 
         # 5. 生成各项信号
         canvas_hash = generate_canvas_hash(verification_id, device_key)
@@ -79,9 +101,14 @@ class DeviceIdentityFactory:
         font_hash = generate_font_hash(verification_id, device.os_family)
         session_id = generate_session_id(verification_id)
         sec_ch_ua = generate_sec_ch_ua(impersonate_key)
+        logger.debug(
+            "[步骤5/8] 信号生成: canvas=%s..., audio=%s, webgl=%s..., font=%s..., session=%s",
+            canvas_hash[:8], audio_fp, webgl_hash[:8], font_hash[:8], session_id,
+        )
 
         # 6. 生成 User-Agent
         user_agent = device.ua_template.format(chrome_ver=chrome_ver)
+        logger.debug("[步骤6/8] User-Agent: %s", user_agent[:80])
 
         # 7. 计算最终指纹哈希
         #    使用 MurmurHash3 x64_128 (seed=31), 分隔符 ~~~
@@ -108,9 +135,10 @@ class DeviceIdentityFactory:
             device.webgl_renderer,                            # dts: WebGL 渲染器 (完整字符串)
             audio_fp,                                         # dtt: AudioContext 指纹哈希
         ])
+        logger.info("[步骤7/8] 指纹哈希: %s", fingerprint_hash)
 
         # 8. 构建不可变的 DeviceIdentity
-        return DeviceIdentity(
+        identity = DeviceIdentity(
             verification_id=verification_id,
             device=device,
             chrome_version=chrome_ver,
@@ -138,6 +166,11 @@ class DeviceIdentityFactory:
             sec_ch_ua=sec_ch_ua,
             sec_ch_ua_platform=device.sec_ch_ua_platform,
         )
+        logger.info(
+            "[步骤8/8] DeviceIdentity 创建完成: vid=%s..., device=%s %s, fingerprint=%s",
+            vid_short, device.brand, device.model, fingerprint_hash,
+        )
+        return identity
 
     def _select_device(
         self,
@@ -148,13 +181,17 @@ class DeviceIdentityFactory:
         if brand:
             brand_lower = brand.lower()
             candidates = DEVICES_BY_BRAND.get(brand_lower, ALL_DEVICES)
+            logger.debug("品牌过滤: brand=%s, 候选设备数=%d", brand_lower, len(candidates))
         else:
             candidates = ALL_DEVICES
+            logger.debug("无品牌过滤, 全部候选设备数=%d", len(candidates))
 
         if not candidates:
             candidates = ALL_DEVICES
+            logger.debug("候选池为空, 回退到全部设备 (数量=%d)", len(candidates))
 
         # 确定性选择
         seed = _deterministic_seed(verification_id, "device_select")
         idx = _seed_to_int(seed, len(candidates))
+        logger.debug("确定性选择: 索引=%d/%d", idx, len(candidates))
         return candidates[idx]
