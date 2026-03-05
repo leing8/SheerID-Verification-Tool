@@ -5,9 +5,12 @@ proxy_checker.geo — 地理位置检测
 支持多 API 源故障转移。
 """
 
+import logging
 from typing import Callable, Dict, List, Tuple
 
 from .models import GeoResult
+
+logger = logging.getLogger(__name__)
 
 # ── API 源定义 ──────────────────────────────
 # 每项: (URL, 解析函数)
@@ -62,17 +65,25 @@ def detect_geo(session, *, timeout: int = 8) -> GeoResult:
     Returns:
         GeoResult，所有 API 均失败时返回默认值 (ip="unknown", ...)
     """
-    for url, parser in _API_SOURCES:
+    logger.debug("开始地理位置检测: API 源数=%d, timeout=%ds", len(_API_SOURCES), timeout)
+    for i, (url, parser) in enumerate(_API_SOURCES):
         try:
+            logger.debug("尝试 API 源 %d/%d: %s", i + 1, len(_API_SOURCES), url)
             resp = session.get(url, timeout=timeout)
             data = resp.json()
             result = parser(data)
             # 规范化国家代码为大写
             result.country = result.country.upper() if result.country else "UNKNOWN"
+            logger.info(
+                "地理位置检测成功 (源 %d/%d): ip=%s, country=%s, city=%s, org=%s",
+                i + 1, len(_API_SOURCES), result.ip, result.country, result.city, result.org,
+            )
             return result
-        except Exception:
+        except Exception as e:
+            logger.debug("API 源 %d/%d 失败: %s: %s", i + 1, len(_API_SOURCES), url, e)
             continue
 
+    logger.warning("所有 API 源均失败, 返回默认 GeoResult")
     return GeoResult()
 
 
@@ -104,6 +115,9 @@ def infer_country_from_hostname(proxy: str) -> str:
     proxy_lower = proxy.lower()
     for country, indicators in _COUNTRY_INDICATORS.items():
         if any(ind in proxy_lower for ind in indicators):
+            logger.debug("主机名国家推断: proxy=%s -> %s", proxy[:40], country)
             return country
 
+    logger.debug("主机名国家推断: proxy=%s -> UNKNOWN", proxy[:40])
     return "UNKNOWN"
+

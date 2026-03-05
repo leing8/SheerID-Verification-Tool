@@ -4,7 +4,11 @@ proxy_checker.reputation — 代理属性与纯净度评估
 基于 IP 归属组织 (org) 和代理主机名，判断代理类型、是否数据中心 IP、风险等级。
 """
 
+import logging
+
 from .models import ProxyType, ReputationResult, RiskLevel
+
+logger = logging.getLogger(__name__)
 
 # ── 数据中心关键词 ──
 _DATACENTER_KEYWORDS = frozenset({
@@ -81,6 +85,12 @@ def evaluate_reputation(org: str, hostname: str = "") -> ReputationResult:
     is_datacenter = proxy_type == ProxyType.DATACENTER
     provider = _detect_provider(org_lower)
     risk_level = _assess_risk(proxy_type, is_datacenter)
+
+    logger.debug(
+        "纯净度评估: org=%s, type=%s, datacenter=%s, risk=%s, provider=%s",
+        org[:30] if org else "(空)", proxy_type.value, is_datacenter,
+        risk_level.value, provider or "(无)",
+    )
 
     return ReputationResult(
         proxy_type=proxy_type,
