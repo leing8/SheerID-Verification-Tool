@@ -8,7 +8,7 @@ enabled=False 时整条流水线跳过，直接返回原图。
 from dataclasses import dataclass
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=False)
 class ObfuscationConfig:
     """
     文档混淆总控配置。
@@ -22,16 +22,13 @@ class ObfuscationConfig:
         background_scene:  背景场景叠加（桌面/地毯等拍照背景 + 文档透视变换）。
     """
 
-    enabled: bool = True
+    enabled: bool = False
     stains: bool = True
     creases: bool = True
     crop: bool = True
     transform_3d: bool = True
-    background_scene: bool = False
+    background_scene: bool = True
 
 
 # 默认配置：全部效果启用
 DEFAULT_CONFIG = ObfuscationConfig()
-
-# 完全禁用（调试 / 测试用）
-DISABLED_CONFIG = ObfuscationConfig(enabled=False)

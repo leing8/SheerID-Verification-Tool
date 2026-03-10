@@ -22,7 +22,7 @@ from pathlib import Path
 
 import pytest
 from student_document_factory import StudentInfoFactory
-from student_document_factory.document_obfuscation import ObfuscationConfig
+from student_document_factory.document_obfuscation import DEFAULT_CONFIG, ObfuscationConfig
 
 logger = logging.getLogger(__name__)
 
@@ -32,35 +32,7 @@ OUTPUT_DIR = Path(__file__).parent.parent.parent / "output" / "student_docs"
 # ============ 可配置区域（修改后直接运行测试即可查看效果）============
 
 # 固定 vid 确保确定性（修改此值可生成不同学生）
-SAMPLE_VID = "69a93d533d18d46974b29458"
-
-# 混淆配置（默认全部关闭，仅查看原始文档内容）
-# 如需查看某个混淆效果，将 enabled 设为 True 并开启对应效果：
-#   enabled=True           总开关（必须为 True 才会应用下面的效果）
-#   stains=True            污渍（mud / wear / fading）
-#   creases=True           折痕
-#   crop=True              边缘裁剪
-#   transform_3d=True      3D 透视变换
-#   background_scene=True  背景场景叠加（桌面 / 地毯等）
-
-# OBFUSCATION_CONFIG = ObfuscationConfig(
-#     enabled=False,
-#     stains=False,
-#     creases=False,
-#     crop=False,
-#     transform_3d=False,
-#     background_scene=False,
-# )
-
-OBFUSCATION_CONFIG = ObfuscationConfig(
-    enabled=True,
-    stains=True,
-    creases=True,
-    crop=True,
-    transform_3d=True,
-    background_scene=False,
-)
-
+SAMPLE_VID = "69a93d533d18d46974b29451"
 
 @pytest.fixture(scope="session", autouse=True)
 def output_dir() -> Path:
@@ -86,7 +58,7 @@ def disable_obfuscation():
     for name, mod in sys.modules.items():
         if name.endswith(target_suffix) and hasattr(mod, "DEFAULT_CONFIG"):
             originals[name] = mod.DEFAULT_CONFIG
-            mod.DEFAULT_CONFIG = OBFUSCATION_CONFIG
+            mod.DEFAULT_CONFIG = DEFAULT_CONFIG
 
     logger.debug("disable_obfuscation: patched %d module copies", len(originals))
 
